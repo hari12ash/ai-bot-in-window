@@ -17,6 +17,7 @@ chitanda_gallery/
 *.log
 test_*.mp3
 test_*.jpg
+king_tasks.json
 
 # Operating System files
 Thumbs.db

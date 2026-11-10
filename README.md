@@ -14,9 +14,9 @@ Powered locally and privately by **Ollama** and **PySide6 (Qt6)**.
   - Frameless, translucent floating desktop character that wanders, breathes, naps (Zzz), and reacts to your interactions.
   - **4 Outfits / Character Modes**:
     - School Sailor Uniform (Classic Literature Club)
-    - Signature *"I'm curious! (私、気になります！)"* leaning pose
-    - Summer Casual Sundress
-    - Festival Yukata
+    - Inquisitive School Uniform (with knit vest & hands clasped)
+    - Sage Green Knit Vest & Blouse
+    - Warm Winter Duffle Coat & Scarf
     - Houtarou Oreki (Energy-Saving Protagonist) switchable via context menu
   - Blooming curiosity aura (`#ec4899`, `#a855f7`) when thinking or curious.
 

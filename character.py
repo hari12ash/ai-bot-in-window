@@ -18,7 +18,7 @@ from work_tools import StudySessionManager
 UNIFORM_SPRITE = os.path.join(os.path.dirname(__file__), "chitanda_uniform.png")
 CURIOUS_SPRITE = os.path.join(os.path.dirname(__file__), "chitanda_curious.png")
 CASUAL_SPRITE = os.path.join(os.path.dirname(__file__), "chitanda_casual.png")
-YUKATA_SPRITE = os.path.join(os.path.dirname(__file__), "chitanda_yukata.png")
+WINTER_SPRITE = os.path.join(os.path.dirname(__file__), "chitanda_winter.png")
 OREKI_SPRITE = os.path.join(os.path.dirname(__file__), "oreki_crisp.png")
 
 CHITANDA_QUOTES = [
@@ -126,7 +126,7 @@ class KingCharacter(QWidget):
             "uniform": UNIFORM_SPRITE,
             "curious": CURIOUS_SPRITE,
             "casual": CASUAL_SPRITE,
-            "yukata": YUKATA_SPRITE,
+            "winter": WINTER_SPRITE,
             "oreki": OREKI_SPRITE
         }
 
@@ -508,9 +508,9 @@ class KingCharacter(QWidget):
         # Outfit & Character submenu
         outfit_menu = menu.addMenu("👗 Change Outfit / Character")
         act_unif = outfit_menu.addAction("🌸 School Sailor Uniform (Chitanda)")
-        act_cur = outfit_menu.addAction("✨ Curious Leaning Pose (Chitanda)")
-        act_cas = outfit_menu.addAction("👒 Summer Casual Sundress (Chitanda)")
-        act_yuk = outfit_menu.addAction("🎆 Festival Yukata (Chitanda)")
+        act_cur = outfit_menu.addAction("✨ Inquisitive School Uniform (Chitanda)")
+        act_cas = outfit_menu.addAction("🍃 Knit Vest & Blouse (Chitanda)")
+        act_win = outfit_menu.addAction("🧥 Winter Coat & Scarf (Chitanda)")
         outfit_menu.addSeparator()
         act_oreki = outfit_menu.addAction("🍵 Houtarou Oreki (Energy Saver)")
 
@@ -548,8 +548,8 @@ class KingCharacter(QWidget):
             self.set_outfit("curious")
         elif action == act_cas:
             self.set_outfit("casual")
-        elif action == act_yuk:
-            self.set_outfit("yukata")
+        elif action == act_win:
+            self.set_outfit("winter")
         elif action == act_oreki:
             self.set_outfit("oreki")
         elif action == action_compact:
