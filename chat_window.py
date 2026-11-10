@@ -208,6 +208,25 @@ class ChatWindow(QDialog):
         )
         layout.addWidget(self.chat_display)
 
+        # Quick interactive helper buttons
+        help_row = QHBoxLayout()
+        btn_quiz = QPushButton("❓ Quiz Me on My Topic")
+        btn_quiz.setStyleSheet("background-color: #261b40; color: #ec4899; font-size: 11px; padding: 5px 10px;")
+        btn_quiz.clicked.connect(self._on_click_quiz)
+
+        btn_solve = QPushButton("🧩 Help Me Solve a Problem")
+        btn_solve.setStyleSheet("background-color: #261b40; color: #c084fc; font-size: 11px; padding: 5px 10px;")
+        btn_solve.clicked.connect(self._on_click_help_solve)
+
+        btn_review = QPushButton("📋 Review My Tasks")
+        btn_review.setStyleSheet("background-color: #261b40; color: #a78bfa; font-size: 11px; padding: 5px 10px;")
+        btn_review.clicked.connect(self._on_click_review_tasks)
+
+        help_row.addWidget(btn_quiz)
+        help_row.addWidget(btn_solve)
+        help_row.addWidget(btn_review)
+        layout.addLayout(help_row)
+
         # Input row
         input_row = QHBoxLayout()
         self.chat_input = QLineEdit()
@@ -247,6 +266,25 @@ class ChatWindow(QDialog):
         self.character.say("Going invisible now. Focus with all your heart! See you at break time!", voice=self.voice_btn.isChecked())
         QTimer.singleShot(1500, self.character.hide_character)
         self.hide()
+
+    def _on_click_quiz(self):
+        prompt = "I'm curious! As Eru Chitanda, please quiz me with one thought-provoking question related to my study and exam preparation (e.g. computer science, engineering, or logical deduction). Ask the question with genuine curiosity and tell me you're excited to see my answer!"
+        self.process_user_prompt(prompt)
+
+    def _on_click_help_solve(self):
+        self.chat_display.append("<span style='color: #ec4899; font-weight: bold;'>Chitanda:</span> I would love to help you solve it! Please type or paste the difficult question, error message, or concept you are working on, and let's deduce the answer together! (私、気になります！)")
+        self.character.say("I would love to help! Tell me about the problem, and let's solve it together!", voice=self.voice_btn.isChecked())
+        self.chat_input.setFocus()
+
+    def _on_click_review_tasks(self):
+        tasks = self.memory.user_profile.get("tasks", [])
+        goals = self.memory.user_profile.get("goals", [])
+        if tasks:
+            task_str = ", ".join(f"'{t}'" for t in tasks)
+            prompt = f"As Eru Chitanda, check in on my current tasks: {task_str} and my goals: {', '.join(goals)}. Ask me which one I'm working on right now and offer your encouragement and help!"
+        else:
+            prompt = "As Eru Chitanda, warmly ask me what my main goals and tasks are for today so you can remember them and help me stay on track!"
+        self.process_user_prompt(prompt)
 
     def setup_tools_tab(self):
         tab = QWidget()

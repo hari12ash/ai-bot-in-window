@@ -29,6 +29,19 @@ CHITANDA_QUOTES = [
     "Remember to drink plenty of water and rest your eyes. Your health is so important!"
 ]
 
+CHITANDA_PROACTIVE_QUESTIONS = [
+    "I'm curious! (私、気になります！) What topic are you studying right now? Can I help you brainstorm?",
+    "How is your study session progressing? If you're stuck on a difficult question, let's solve it together!",
+    "I'm curious... would you like me to quiz you on your study topics or test your knowledge?",
+    "Are you preparing for your GATE exam or revising notes right now? You are doing such wonderful work!",
+    "If you have any complex problem or confusing code, copy it and click me—I would love to help deduce the answer!",
+    "I noticed you've been working diligently! How is your concentration? Would you like a warm cup of tea?",
+    "I'm so curious to know—what is the most interesting thing you have discovered today?",
+    "Should we review our daily tasks together to see what we can accomplish next?",
+    "Don't worry if a problem looks intimidating! Every mystery has a solution if we look closely together!",
+    "Are you taking good care of your eyes? Please remember to look away from the screen for a moment and stretch!"
+]
+
 CHITANDA_AMBIENT_THOUGHTS = [
     "I'm curious... how is your study session progressing?",
     "You're working so hard today! Please remember to take a short break if you feel tired.",
@@ -79,24 +92,25 @@ class KingCharacter(QWidget):
         self.is_hidden_by_user = False
 
         # States: "STAND", "WALK", "CURIOUS", "SLEEP"
-        self.current_state = "STAND"
-        self.walk_direction = 1
-        self.walk_speed = 1.0
-        self.walk_ticks_remaining = 0
+        self.current_state = "WALK"
+        self.walk_direction = random.choice([-1, 1])
+        self.walk_speed = 1.8
+        self.walk_pos_accumulator = 0.0
+        self.walk_ticks_remaining = random.randint(120, 240)
         self.walk_footstep = 0.0
         self.last_interaction_time = time.time()
         self.sleep_zzz_timer = 0.0
         self.ambient_enabled = True
 
-        # State decision timer
+        # State decision timer (evaluates every 3.5 seconds)
         self.idle_decision_timer = QTimer(self)
         self.idle_decision_timer.timeout.connect(self._decide_next_idle_action)
-        self.idle_decision_timer.start(5000)
+        self.idle_decision_timer.start(3500)
 
-        # Ambient thoughts timer (every 10 minutes)
-        self.ambient_timer = QTimer(self)
-        self.ambient_timer.timeout.connect(self._pop_ambient_thought)
-        self.ambient_timer.start(10 * 60 * 1000)
+        # Proactive Curious Questions & Assistance Timer (every 2.5 to 4.5 minutes)
+        self.question_timer = QTimer(self)
+        self.question_timer.timeout.connect(self._ask_proactive_question)
+        self.question_timer.start(120 * 1000)  # First question after 2 minutes
 
         # Reaction reset timer
         self.reaction_reset_timer = QTimer(self)
@@ -289,32 +303,64 @@ class KingCharacter(QWidget):
             thought = random.choice(CHITANDA_AMBIENT_THOUGHTS)
             self.bubble.show_message(thought, duration_ms=6500)
 
+    def _ask_proactive_question(self):
+        if not self.ambient_enabled or self.is_thinking or not self.isVisible():
+            return
+        # If quiet study mode is active, don't interrupt with ambient voice
+        if self.study_manager.is_running and self.study_manager.phase == "study":
+            return
+        # If chat window is open, let the user chat uninterrupted
+        if self.chat_window and self.chat_window.isVisible():
+            return
+
+        self.wake_up()
+        self.current_state = "CURIOUS"
+        self.walk_ticks_remaining = 0
+        question = random.choice(CHITANDA_PROACTIVE_QUESTIONS)
+        self.say(question, voice=True)
+        self.trigger_friendly_reaction(4500)
+
+        # Re-arm question timer with random delay between 2.5 and 4.5 minutes
+        next_delay = random.randint(150, 270) * 1000
+        self.question_timer.setInterval(next_delay)
+
     def _decide_next_idle_action(self):
         if self.drag_position is not None or self.is_thinking or not self.isVisible():
             return
 
         idle_seconds = time.time() - self.last_interaction_time
 
-        if idle_seconds > 60:
-            self.current_state = "SLEEP"
-            self.idle_decision_timer.setInterval(8000)
-            return
+        # Only sleep if idle for over 20 minutes with high probability of waking up
+        if idle_seconds > 1200:
+            if random.random() < 0.5:
+                self.current_state = "SLEEP"
+                self.idle_decision_timer.setInterval(8000)
+                return
 
-        choices = ["STAND", "WALK", "CURIOUS"]
-        weights = [0.35, 0.40, 0.25]
+        # High probability to WALK (she is lively and explores your screen!)
+        choices = ["WALK", "WALK", "CURIOUS", "STAND"]
+        weights = [0.55, 0.20, 0.15, 0.10]
         new_state = random.choices(choices, weights=weights)[0]
 
         if new_state == "WALK":
             self.current_state = "WALK"
-            self.walk_direction = random.choice([-1, 1])
-            self.walk_ticks_remaining = random.randint(60, 140)
-            self.idle_decision_timer.setInterval(random.randint(4000, 7000))
+            screen = QGuiApplication.primaryScreen().availableGeometry()
+            # Turn toward center if getting too close to edges
+            if self.x() < 100:
+                self.walk_direction = 1
+            elif self.x() > screen.width() - self.widget_width - 100:
+                self.walk_direction = -1
+            else:
+                self.walk_direction = random.choice([-1, 1])
+
+            self.walk_ticks_remaining = random.randint(120, 260)  # 4 to 8.5 seconds of smooth walking
+            self.idle_decision_timer.setInterval(random.randint(4500, 9000))
         elif new_state == "CURIOUS":
             self.current_state = "CURIOUS"
-            self.idle_decision_timer.setInterval(random.randint(6000, 12000))
+            self.idle_decision_timer.setInterval(random.randint(4000, 7500))
         else:
             self.current_state = "STAND"
-            self.idle_decision_timer.setInterval(random.randint(5000, 9000))
+            self.idle_decision_timer.setInterval(random.randint(3000, 6000))
 
     def _tick(self):
         self.animation_step += 0.06
@@ -322,19 +368,24 @@ class KingCharacter(QWidget):
 
         if self.current_state == "WALK" and self.drag_position is None and not self.is_thinking and self.isVisible():
             self.walk_ticks_remaining -= 1
-            self.walk_footstep += 0.25
+            self.walk_footstep += 0.22
 
             screen = QGuiApplication.primaryScreen().availableGeometry()
-            new_x = self.x() + int(self.walk_direction * self.walk_speed)
+            self.walk_pos_accumulator += self.walk_direction * self.walk_speed
+            step = int(self.walk_pos_accumulator)
 
-            if new_x < 15:
-                new_x = 15
-                self.walk_direction = 1
-            elif new_x > screen.width() - self.widget_width - 15:
-                new_x = screen.width() - self.widget_width - 15
-                self.walk_direction = -1
+            if step != 0:
+                self.walk_pos_accumulator -= step
+                new_x = self.x() + step
 
-            self.move(new_x, self.y())
+                if new_x < 20:
+                    new_x = 20
+                    self.walk_direction = 1
+                elif new_x > screen.width() - self.widget_width - 20:
+                    new_x = screen.width() - self.widget_width - 20
+                    self.walk_direction = -1
+
+                self.move(new_x, self.y())
 
             if self.walk_ticks_remaining <= 0:
                 self.current_state = "STAND"
@@ -388,7 +439,7 @@ class KingCharacter(QWidget):
         painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
 
         if self.current_state == "WALK":
-            float_y = math.sin(self.walk_footstep) * 2.0
+            float_y = -abs(math.sin(self.walk_footstep)) * 3.5
         elif self.current_state in ["CURIOUS", "SLEEP"]:
             float_y = math.sin(self.animation_step * 0.8) * 1.8
         else:
@@ -433,9 +484,19 @@ class KingCharacter(QWidget):
         if sprite_pair:
             pix = sprite_pair[1] if (self.current_state == "WALK" and self.walk_direction < 0) else sprite_pair[0]
             if pix and not pix.isNull():
+                painter.save()
+                if self.current_state == "WALK":
+                    tilt_deg = math.sin(self.walk_footstep) * 2.5
+                    pivot_x = self.widget_width / 2
+                    pivot_y = self.widget_height - 20
+                    painter.translate(pivot_x, pivot_y)
+                    painter.rotate(tilt_deg)
+                    painter.translate(-pivot_x, -pivot_y)
+
                 draw_x = (self.widget_width - pix.width()) // 2
                 draw_y = int(8 + float_y)
                 painter.drawPixmap(draw_x, draw_y, pix)
+                painter.restore()
 
         # Sleeping Zzz
         if self.current_state == "SLEEP":
@@ -500,6 +561,8 @@ class KingCharacter(QWidget):
         """)
 
         action_chat = menu.addAction("💬 Talk with Chitanda")
+        action_ask = menu.addAction("❓ Ask Me a Curious Question")
+        action_walk = menu.addAction("🚶 Stroll Around Desktop" if self.current_state != "WALK" else "🧍 Stand Still Here")
         action_pomo = menu.addAction("⏱️ 30m Study & Break Session")
         action_clip = menu.addAction("🔍 Ask Chitanda About Clipboard")
         action_curious = menu.addAction("✨ 「私、気になります！」 (I'm Curious!)")
@@ -530,6 +593,16 @@ class KingCharacter(QWidget):
 
         if action == action_chat:
             self.open_chat()
+        elif action == action_ask:
+            self._ask_proactive_question()
+        elif action == action_walk:
+            if self.current_state == "WALK":
+                self.current_state = "STAND"
+                self.walk_ticks_remaining = 0
+            else:
+                self.wake_up()
+                self.current_state = "WALK"
+                self.walk_ticks_remaining = 350
         elif action == action_pomo:
             if self.chat_window:
                 self.chat_window._start_custom_study(30, 3, hide=True)

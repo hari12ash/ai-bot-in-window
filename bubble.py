@@ -76,9 +76,9 @@ class SpeechBubble(QWidget):
         path = QPainterPath()
         path.addRoundedRect(rect.toRectF(), 10, 10)
 
-        # Soft dark slate bubble with calming emerald border
-        painter.setPen(QColor("#10b981"))
-        painter.setBrush(QColor(15, 23, 42, 245))
+        # Soft midnight violet bubble with glowing rose/pink border
+        painter.setPen(QColor("#ec4899"))
+        painter.setBrush(QColor(24, 15, 45, 245))
         painter.drawPath(path)
 
     def mousePressEvent(self, event):
