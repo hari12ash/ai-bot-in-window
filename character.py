@@ -14,6 +14,7 @@ from PySide6.QtWidgets import QWidget, QMenu, QApplication, QSystemTrayIcon
 from bubble import SpeechBubble
 from voice import VoiceSpeakerThread
 from work_tools import StudySessionManager
+from laptop_control import LaptopController
 
 UNIFORM_SPRITE = os.path.join(os.path.dirname(__file__), "chitanda_uniform.png")
 CURIOUS_SPRITE = os.path.join(os.path.dirname(__file__), "chitanda_curious.png")
@@ -568,6 +569,13 @@ class KingCharacter(QWidget):
         action_curious = menu.addAction("✨ 「私、気になります！」 (I'm Curious!)")
         action_hide = menu.addAction("🙈 Hide Chitanda (Quiet Study)")
 
+        # Laptop Quick Tools submenu
+        laptop_menu = menu.addMenu("💻 Laptop Controls")
+        act_battery = laptop_menu.addAction("🔋 Check Battery Status")
+        act_shot = laptop_menu.addAction("📸 Take Screenshot")
+        act_desk = laptop_menu.addAction("🖥️ Show Desktop (Win+D)")
+        act_lock = laptop_menu.addAction("🔒 Lock Laptop (LockWorkstation)")
+
         # Outfit & Character submenu
         outfit_menu = menu.addMenu("👗 Change Outfit / Character")
         act_unif = outfit_menu.addAction("🌸 School Sailor Uniform (Chitanda)")
@@ -595,6 +603,16 @@ class KingCharacter(QWidget):
             self.open_chat()
         elif action == action_ask:
             self._ask_proactive_question()
+        elif action == act_battery:
+            info = LaptopController.get_battery_info()
+            self.say(info, voice=True)
+        elif action == act_shot:
+            reply = LaptopController.take_screenshot()
+            self.say(reply, voice=True)
+        elif action == act_desk:
+            LaptopController.show_desktop()
+        elif action == act_lock:
+            LaptopController.lock_laptop()
         elif action == action_walk:
             if self.current_state == "WALK":
                 self.current_state = "STAND"

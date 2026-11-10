@@ -13,6 +13,7 @@ from PySide6.QtWidgets import (
 
 from ai_brain import get_installed_models, OllamaChatWorker, ChitandaMemoryManager
 from work_tools import PomodoroTimer, TaskManager
+from laptop_control import LaptopController
 
 WALLPAPER_DIR = os.path.join(os.path.dirname(__file__), "wallpapers")
 
@@ -158,6 +159,7 @@ class ChatWindow(QDialog):
         # Tabs
         self.tabs = QTabWidget()
         self.setup_chat_tab()
+        self.setup_laptop_tab()
         self.setup_tools_tab()
         self.setup_quick_actions_tab()
         self.setup_wallpapers_tab()
@@ -529,6 +531,135 @@ class ChatWindow(QDialog):
             ctypes.windll.user32.SystemParametersInfoW(20, 0, abs_path, 3)
             self.character.say("Your desktop wallpaper is set! It looks so wonderful!", voice=self.voice_btn.isChecked())
 
+    def setup_laptop_tab(self):
+        tab = QWidget()
+        layout = QVBoxLayout(tab)
+        layout.setContentsMargins(12, 12, 12, 12)
+
+        title = QLabel("💻 Chitanda's Direct Laptop Access & Tools")
+        title.setFont(QFont("Segoe UI", 10, QFont.Weight.Bold))
+        title.setStyleSheet("color: #ec4899;")
+        layout.addWidget(title)
+
+        desc = QLabel("I have direct access to your laptop hardware, apps, and system settings! Click any tool below or tell me in chat:")
+        desc.setStyleSheet("color: #a78bfa; font-size: 11px;")
+        desc.setWordWrap(True)
+        layout.addWidget(desc)
+
+        # Status & Security Frame
+        status_frame = QFrame()
+        status_frame.setStyleSheet("background: #130d24; border-radius: 8px; padding: 10px; border: 1px solid #3b2656;")
+        status_layout = QGridLayout(status_frame)
+        status_layout.setSpacing(8)
+
+        btn_battery = QPushButton("🔋 Check Battery Status")
+        btn_battery.clicked.connect(lambda: self._exec_laptop_ui("battery"))
+        status_layout.addWidget(btn_battery, 0, 0)
+
+        btn_health = QPushButton("📊 System Health (CPU/RAM/Disk)")
+        btn_health.clicked.connect(lambda: self._exec_laptop_ui("health"))
+        status_layout.addWidget(btn_health, 0, 1)
+
+        btn_shot = QPushButton("📸 Take Screenshot")
+        btn_shot.clicked.connect(lambda: self._exec_laptop_ui("screenshot"))
+        status_layout.addWidget(btn_shot, 1, 0)
+
+        btn_lock = QPushButton("🔒 Lock Laptop (Security)")
+        btn_lock.setStyleSheet("background-color: #831843;")
+        btn_lock.clicked.connect(lambda: self._exec_laptop_ui("lock"))
+        status_layout.addWidget(btn_lock, 1, 1)
+
+        layout.addWidget(status_frame)
+
+        # Quick Controls Frame
+        ctrl_title = QLabel("🔊 Audio & Desktop Controls")
+        ctrl_title.setFont(QFont("Segoe UI", 9, QFont.Weight.Bold))
+        ctrl_title.setStyleSheet("color: #c084fc; margin-top: 6px;")
+        layout.addWidget(ctrl_title)
+
+        ctrl_row = QHBoxLayout()
+        btn_vol_up = QPushButton("🔊 Vol Up")
+        btn_vol_up.clicked.connect(lambda: self._exec_laptop_ui("vol_up"))
+        btn_vol_down = QPushButton("🔉 Vol Down")
+        btn_vol_down.clicked.connect(lambda: self._exec_laptop_ui("vol_down"))
+        btn_mute = QPushButton("🔇 Mute Toggle")
+        btn_mute.clicked.connect(lambda: self._exec_laptop_ui("mute"))
+        btn_show_desk = QPushButton("🖥️ Show Desktop")
+        btn_show_desk.clicked.connect(lambda: self._exec_laptop_ui("desktop"))
+
+        ctrl_row.addWidget(btn_vol_up)
+        ctrl_row.addWidget(btn_vol_down)
+        ctrl_row.addWidget(btn_mute)
+        ctrl_row.addWidget(btn_show_desk)
+        layout.addLayout(ctrl_row)
+
+        # Quick Launch Apps Frame
+        apps_title = QLabel("🚀 Launch Windows Applications")
+        apps_title.setFont(QFont("Segoe UI", 9, QFont.Weight.Bold))
+        apps_title.setStyleSheet("color: #c084fc; margin-top: 6px;")
+        layout.addWidget(apps_title)
+
+        apps_grid = QGridLayout()
+        apps_grid.setSpacing(6)
+
+        apps = [
+            ("📝 Notepad", "notepad"),
+            ("🧮 Calculator", "calculator"),
+            ("💻 VS Code", "code"),
+            ("📁 Downloads", "downloads"),
+            ("🌐 Google Chrome", "chrome"),
+            ("⚙️ Windows Settings", "settings")
+        ]
+
+        for idx, (label, cmd) in enumerate(apps):
+            b = QPushButton(label)
+            b.setStyleSheet("background-color: #261b40; color: #fdf2f8;")
+            b.clicked.connect(lambda _, c=cmd: self._exec_laptop_ui(f"app:{c}"))
+            apps_grid.addWidget(b, idx // 2, idx % 2)
+
+        layout.addLayout(apps_grid)
+        layout.addStretch()
+        self.tabs.addTab(tab, "💻 Laptop Control")
+
+    def _exec_laptop_ui(self, action_key: str):
+        if action_key == "battery":
+            reply = LaptopController.get_battery_info()
+            self.tabs.setCurrentIndex(0)
+            self.chat_display.append(f"<span style='color: #ec4899; font-weight: bold;'>Chitanda:</span> {reply}")
+            self.character.say(reply, voice=self.voice_btn.isChecked())
+        elif action_key == "health":
+            reply = LaptopController.get_system_health()
+            self.tabs.setCurrentIndex(0)
+            self.chat_display.append(f"<span style='color: #ec4899; font-weight: bold;'>Chitanda:</span><pre style='color: #e9d5ff;'>{reply}</pre>")
+            self.character.say("Here is your current laptop health report!", voice=self.voice_btn.isChecked())
+        elif action_key == "lock":
+            reply = LaptopController.lock_laptop()
+            self.tabs.setCurrentIndex(0)
+            self.chat_display.append(f"<span style='color: #ec4899; font-weight: bold;'>Chitanda:</span> {reply}")
+        elif action_key == "screenshot":
+            self.hide()
+            QTimer.singleShot(400, lambda: self._execute_screenshot("screenshot"))
+        elif action_key == "vol_up":
+            LaptopController.volume_up()
+        elif action_key == "vol_down":
+            LaptopController.volume_down()
+        elif action_key == "mute":
+            LaptopController.volume_mute_toggle()
+        elif action_key == "desktop":
+            LaptopController.show_desktop()
+        elif action_key.startswith("app:"):
+            app_name = action_key.split(":", 1)[1]
+            reply = LaptopController.open_application(app_name)
+            self.tabs.setCurrentIndex(0)
+            self.chat_display.append(f"<span style='color: #ec4899; font-weight: bold;'>Chitanda:</span> {reply}")
+            self.character.say(reply, voice=self.voice_btn.isChecked())
+
+    def _execute_screenshot(self, orig_text):
+        reply = LaptopController.take_screenshot()
+        self.show()
+        self.chat_display.append(f"<span style='color: #ec4899; font-weight: bold;'>Chitanda:</span> {reply}")
+        self.character.say("I took a screenshot for you and saved it to your Pictures folder!", voice=self.voice_btn.isChecked())
+
     def play_chitanda_line(self, ja_text: str, en_text: str):
         is_ja = (self.voice_mode_combo.currentData() == "ja-chitanda")
         spoken = ja_text if is_ja else en_text
@@ -719,6 +850,98 @@ class ChatWindow(QDialog):
             self.character.say(reply, voice=self.voice_btn.isChecked())
             return
 
+        # 7. LAPTOP CONTROL: BATTERY
+        if any(b in lower for b in ["battery", "charge level", "battery percent", "how much battery", "power status"]):
+            self.chat_display.append(f"<span style='color: #38bdf8; font-weight: bold;'>You:</span> {text}")
+            reply = LaptopController.get_battery_info()
+            self.chat_display.append(f"<span style='color: #ec4899; font-weight: bold;'>Chitanda:</span> {reply}")
+            self.character.say(reply, voice=self.voice_btn.isChecked())
+            return
+
+        # 8. LAPTOP CONTROL: SYSTEM HEALTH / SPECS
+        if any(h in lower for h in ["system health", "laptop health", "cpu usage", "ram usage", "disk space", "laptop status", "laptop specs"]):
+            self.chat_display.append(f"<span style='color: #38bdf8; font-weight: bold;'>You:</span> {text}")
+            reply = LaptopController.get_system_health()
+            self.chat_display.append(f"<span style='color: #ec4899; font-weight: bold;'>Chitanda:</span><pre style='color: #e9d5ff;'>{reply}</pre>")
+            self.character.say("Here is your current laptop health report!", voice=self.voice_btn.isChecked())
+            return
+
+        # 9. LAPTOP CONTROL: LOCK LAPTOP / PC
+        if any(l in lower for l in ["lock laptop", "lock pc", "lock computer", "lock screen", "lock workstation"]):
+            self.chat_display.append(f"<span style='color: #38bdf8; font-weight: bold;'>You:</span> {text}")
+            reply = LaptopController.lock_laptop()
+            self.chat_display.append(f"<span style='color: #ec4899; font-weight: bold;'>Chitanda:</span> {reply}")
+            self.character.say(reply, voice=self.voice_btn.isChecked())
+            return
+
+        # 10. LAPTOP CONTROL: SCREENSHOT
+        if any(s in lower for s in ["take a screenshot", "screenshot", "screen capture", "capture screen"]):
+            self.chat_display.append(f"<span style='color: #38bdf8; font-weight: bold;'>You:</span> {text}")
+            self.hide()
+            QTimer.singleShot(400, lambda: self._execute_screenshot(text))
+            return
+
+        # 11. LAPTOP CONTROL: VOLUME & MEDIA
+        if any(v in lower for v in ["mute sound", "mute volume", "mute audio", "unmute"]):
+            self.chat_display.append(f"<span style='color: #38bdf8; font-weight: bold;'>You:</span> {text}")
+            reply = LaptopController.volume_mute_toggle()
+            self.chat_display.append(f"<span style='color: #ec4899; font-weight: bold;'>Chitanda:</span> {reply}")
+            return
+        if any(v in lower for v in ["volume up", "increase volume", "louder", "turn up volume", "raise volume"]):
+            self.chat_display.append(f"<span style='color: #38bdf8; font-weight: bold;'>You:</span> {text}")
+            reply = LaptopController.volume_up()
+            self.chat_display.append(f"<span style='color: #ec4899; font-weight: bold;'>Chitanda:</span> {reply}")
+            return
+        if any(v in lower for v in ["volume down", "decrease volume", "lower volume", "quieter", "turn down volume"]):
+            self.chat_display.append(f"<span style='color: #38bdf8; font-weight: bold;'>You:</span> {text}")
+            reply = LaptopController.volume_down()
+            self.chat_display.append(f"<span style='color: #ec4899; font-weight: bold;'>Chitanda:</span> {reply}")
+            return
+        if any(m in lower for m in ["pause music", "play music", "toggle music", "play/pause", "pause video"]):
+            self.chat_display.append(f"<span style='color: #38bdf8; font-weight: bold;'>You:</span> {text}")
+            reply = LaptopController.media_toggle()
+            self.chat_display.append(f"<span style='color: #ec4899; font-weight: bold;'>Chitanda:</span> {reply}")
+            return
+
+        # 12. LAPTOP CONTROL: SHOW DESKTOP
+        if any(d in lower for d in ["show desktop", "minimize all", "minimize windows"]):
+            self.chat_display.append(f"<span style='color: #38bdf8; font-weight: bold;'>You:</span> {text}")
+            reply = LaptopController.show_desktop()
+            self.chat_display.append(f"<span style='color: #ec4899; font-weight: bold;'>Chitanda:</span> {reply}")
+            return
+
+        # 13. LAPTOP CONTROL: WEB SEARCH (GOOGLE / YOUTUBE)
+        search_yt = re.search(r'(?:search youtube for|play on youtube|youtube)\s+([^.,;\n]+)', lower)
+        if search_yt:
+            q = search_yt.group(1).strip()
+            self.chat_display.append(f"<span style='color: #38bdf8; font-weight: bold;'>You:</span> {text}")
+            reply = LaptopController.search_youtube(q)
+            self.chat_display.append(f"<span style='color: #ec4899; font-weight: bold;'>Chitanda:</span> {reply}")
+            self.character.say(reply, voice=self.voice_btn.isChecked())
+            return
+
+        search_google = re.search(r'(?:search google for|google|look up)\s+([^.,;\n]+)', lower)
+        if search_google:
+            q = search_google.group(1).strip()
+            self.chat_display.append(f"<span style='color: #38bdf8; font-weight: bold;'>You:</span> {text}")
+            reply = LaptopController.search_web(q)
+            self.chat_display.append(f"<span style='color: #ec4899; font-weight: bold;'>Chitanda:</span> {reply}")
+            self.character.say(reply, voice=self.voice_btn.isChecked())
+            return
+
+        # 14. LAPTOP CONTROL: OPEN APPS
+        open_match = re.search(r'^(?:please\s+)?open\s+(?:the\s+)?([a-zA-Z0-9_\s\.\:\-]+)', lower)
+        if open_match:
+            target = open_match.group(1).strip()
+            self.chat_display.append(f"<span style='color: #38bdf8; font-weight: bold;'>You:</span> {text}")
+            if "." in target and not target.endswith((".exe", ".txt", ".py", ".json")):
+                reply = LaptopController.open_url(target)
+            else:
+                reply = LaptopController.open_application(target)
+            self.chat_display.append(f"<span style='color: #ec4899; font-weight: bold;'>Chitanda:</span> {reply}")
+            self.character.say(reply, voice=self.voice_btn.isChecked())
+            return
+
         # Regular AI query to Ollama
         self.process_user_prompt(text)
 
@@ -762,8 +985,17 @@ class ChatWindow(QDialog):
         self.memory.add_message("assistant", full_text)
         self.character.bubble.finalize_stream(duration_ms=7000)
 
+        # Check and execute any [ACTION: ...] tags generated by the AI
+        action_matches = re.findall(r'\[ACTION:\s*([^\]]+)\]', full_text, re.IGNORECASE)
+        for act in action_matches:
+            action_res = LaptopController.execute_action_tag(act)
+            self.chat_display.append(f"<span style='color: #c084fc; font-weight: bold;'>[Laptop Executed]:</span> {action_res}")
+
         if self.voice_btn.isChecked() and full_text:
-            self.character.voice_worker.speak(full_text)
+            # Clean action tags from speech so she speaks naturally
+            clean_speech = re.sub(r'\[ACTION:[^\]]+\]', '', full_text).strip()
+            if clean_speech:
+                self.character.voice_worker.speak(clean_speech)
 
     def _on_error(self, err):
         self.status_label.setText("Error")
