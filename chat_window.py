@@ -1,759 +1,344 @@
 import os
 import re
-import ctypes
 from datetime import datetime
-from PySide6.QtCore import Qt, Signal, QTimer
-from PySide6.QtGui import QFont, QIcon, QGuiApplication, QPixmap
+from PySide6.QtCore import Qt, Signal, QTimer, QPoint
+from PySide6.QtGui import QFont, QGuiApplication, QColor, QPainter, QBrush, QPen
 from PySide6.QtWidgets import (
-    QDialog, QVBoxLayout, QHBoxLayout, QLabel,
-    QLineEdit, QPushButton, QTextEdit, QTabWidget,
-    QWidget, QListWidget, QListWidgetItem,
-    QComboBox, QFrame, QGridLayout
+    QWidget, QVBoxLayout, QHBoxLayout, QLabel,
+    QLineEdit, QPushButton, QTextEdit, QFrame, QScrollArea
 )
 
 from ai_brain import get_installed_models, OllamaChatWorker, ChitandaMemoryManager
-from work_tools import PomodoroTimer, TaskManager
 from laptop_control import LaptopController
 
-WALLPAPER_DIR = os.path.join(os.path.dirname(__file__), "wallpapers")
-
-class ChatWindow(QDialog):
+class ChatWindow(QWidget):
+    """
+    Compact, comfortable, and sleek desktop chat box for Eru Chitanda.
+    - Double-clicking the mascot opens this clean, small window directly.
+    - Retains conversation context and memory silently in the background.
+    - No distracting history list displayed.
+    - Full laptop control and study timer support.
+    """
     message_sent_to_king = Signal(str)
 
     def __init__(self, character):
         super().__init__()
         self.character = character
         self.memory = ChitandaMemoryManager()
-        self.task_manager = TaskManager()
-        self.pomodoro = PomodoroTimer()
         self.active_worker = None
+        self._current_reply_accum = []
+        self._drag_pos = None
 
-        # Synchronize task manager with persistent memory tasks
-        for task in self.memory.user_profile.get("tasks", []):
-            if not any(t["text"].lower() == task.lower() for t in self.task_manager.tasks):
-                self.task_manager.add_task(task)
+        self.setWindowFlags(
+            Qt.WindowType.FramelessWindowHint |
+            Qt.WindowType.Window |
+            Qt.WindowType.WindowStaysOnTopHint
+        )
+        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
 
-        self.setWindowTitle("🌸 Eru Chitanda - Living Study Companion")
-        self.resize(540, 680)
-        self.setStyleSheet("""
-            QDialog {
+        self.resize(360, 470)
+        self.setMinimumSize(320, 380)
+
+        self._setup_ui()
+
+    def _setup_ui(self):
+        root_layout = QVBoxLayout(self)
+        root_layout.setContentsMargins(8, 8, 8, 8)
+
+        # Main background container with rounded borders and anime glow
+        self.container = QFrame(self)
+        self.container.setObjectName("Container")
+        self.container.setStyleSheet("""
+            QFrame#Container {
                 background-color: #0f0b1e;
-                color: #fdf2f8;
+                border: 1.5px solid #ec4899;
+                border-radius: 14px;
             }
-            QTabWidget::pane {
-                border: 1px solid #3b2656;
-                background: #17112c;
-                border-radius: 8px;
-            }
-            QTabBar::tab {
-                background: #0f0b1e;
-                color: #a78bfa;
-                padding: 9px 16px;
-                border-top-left-radius: 6px;
-                border-top-right-radius: 6px;
-                margin-right: 2px;
-                font-weight: 600;
-            }
-            QTabBar::tab:selected {
-                background: #17112c;
-                color: #ec4899;
-                border: 1px solid #3b2656;
-                border-bottom: none;
-            }
-            QTextEdit, QListWidget {
-                background-color: #0d091a;
-                color: #fdf2f8;
-                border: 1px solid #3b2656;
-                border-radius: 8px;
-                padding: 10px;
-                font-family: 'Segoe UI', sans-serif;
-                font-size: 13px;
-                line-height: 1.4;
-            }
-            QLineEdit {
-                background-color: #0d091a;
-                color: #fdf2f8;
-                border: 1px solid #3b2656;
-                border-radius: 8px;
-                padding: 10px;
-                font-size: 13px;
-            }
-            QLineEdit:focus, QTextEdit:focus {
-                border: 1px solid #ec4899;
-            }
+        """)
+        container_layout = QVBoxLayout(self.container)
+        container_layout.setContentsMargins(12, 10, 12, 12)
+        container_layout.setSpacing(8)
+
+        # --- HEADER BAR ---
+        header = QHBoxLayout()
+        header.setContentsMargins(0, 0, 0, 0)
+
+        # Title & Subtitle
+        title_box = QVBoxLayout()
+        title_box.setSpacing(1)
+        self.title_lbl = QLabel("🌸 Eru Chitanda")
+        self.title_lbl.setFont(QFont("Segoe UI", 11, QFont.Weight.Bold))
+        self.title_lbl.setStyleSheet("color: #ec4899; background: transparent;")
+
+        self.status_lbl = QLabel("● Ready • Classical Literature Club")
+        self.status_lbl.setFont(QFont("Segoe UI", 8))
+        self.status_lbl.setStyleSheet("color: #a78bfa; background: transparent;")
+
+        title_box.addWidget(self.title_lbl)
+        title_box.addWidget(self.status_lbl)
+        header.addLayout(title_box)
+
+        header.addStretch()
+
+        # Voice Toggle Button
+        self.voice_btn = QPushButton("🔊")
+        self.voice_btn.setToolTip("Toggle Voice Output")
+        self.voice_btn.setCheckable(True)
+        self.voice_btn.setChecked(True)
+        self.voice_btn.setFixedSize(28, 28)
+        self.voice_btn.setStyleSheet("""
             QPushButton {
-                background-color: #db2777;
-                color: white;
-                border: none;
-                border-radius: 8px;
-                padding: 8px 14px;
-                font-weight: 600;
+                background-color: #24163b;
+                color: #fdf2f8;
+                border: 1px solid #4a2d6b;
+                border-radius: 14px;
+                font-size: 13px;
             }
             QPushButton:hover {
                 background-color: #ec4899;
             }
-            QPushButton:pressed {
-                background-color: #be185d;
+        """)
+        self.voice_btn.clicked.connect(self._toggle_voice)
+        header.addWidget(self.voice_btn)
+
+        # Close / Minimize button
+        close_btn = QPushButton("✕")
+        close_btn.setToolTip("Close Chat")
+        close_btn.setFixedSize(28, 28)
+        close_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #24163b;
+                color: #a78bfa;
+                border: 1px solid #4a2d6b;
+                border-radius: 14px;
+                font-size: 12px;
+                font-weight: bold;
             }
-            QPushButton.secondary {
-                background-color: #261b40;
-                color: #e9d5ff;
+            QPushButton:hover {
+                background-color: #e11d48;
+                color: white;
             }
-            QPushButton.secondary:hover {
-                background-color: #3b285f;
-            }
-            QComboBox {
-                background-color: #1a1333;
+        """)
+        close_btn.clicked.connect(self.hide)
+        header.addWidget(close_btn)
+
+        container_layout.addLayout(header)
+
+        # --- CHAT DISPLAY ---
+        self.chat_display = QTextEdit()
+        self.chat_display.setReadOnly(True)
+        self.chat_display.setStyleSheet("""
+            QTextEdit {
+                background-color: #150f28;
                 color: #fdf2f8;
-                border: 1px solid #3b2656;
-                border-radius: 6px;
-                padding: 5px 10px;
+                border: 1px solid #2d1d49;
+                border-radius: 10px;
+                padding: 10px;
+                font-family: 'Segoe UI', sans-serif;
+                font-size: 13px;
+                line-height: 1.45;
             }
             QScrollBar:vertical {
-                background: #0d091a;
-                width: 8px;
+                background: #150f28;
+                width: 6px;
                 margin: 0px;
             }
             QScrollBar::handle:vertical {
-                background: #3b2656;
-                min-height: 20px;
-                border-radius: 4px;
+                background: #4a2d6b;
+                min-height: 16px;
+                border-radius: 3px;
+            }
+            QScrollBar::handle:vertical:hover {
+                background: #ec4899;
             }
         """)
-
-        main_layout = QVBoxLayout(self)
-        main_layout.setContentsMargins(14, 14, 14, 14)
-
-        # Header bar
-        header = QHBoxLayout()
-        title = QLabel("🌸 Eru Chitanda  |  Your Curious Friend")
-        title.setFont(QFont("Segoe UI", 12, QFont.Weight.Bold))
-        title.setStyleSheet("color: #ec4899;")
-        header.addWidget(title)
-
-        header.addStretch()
-
-        # Model Selector
-        self.model_combo = QComboBox()
-        models = get_installed_models()
-        self.model_combo.addItems(models)
-        header.addWidget(self.model_combo)
-
-        # Voice Selector
-        self.voice_mode_combo = QComboBox()
-        self.voice_mode_combo.addItem("🌸 English Dub (Madeleine Morris)", "en-chitanda")
-        self.voice_mode_combo.addItem("🎀 Elegant English (Emma)", "en-emma")
-        self.voice_mode_combo.addItem("🇯🇵 Anime Japanese (Satomi Sato)", "ja-chitanda")
-        self.voice_mode_combo.currentIndexChanged.connect(self._on_voice_mode_changed)
-        header.addWidget(self.voice_mode_combo)
-
-        # Voice toggle
-        self.voice_btn = QPushButton("🔊 ON")
-        self.voice_btn.setCheckable(True)
-        self.voice_btn.setChecked(True)
-        self.voice_btn.clicked.connect(self.toggle_voice)
-        header.addWidget(self.voice_btn)
-
-        main_layout.addLayout(header)
-
-        # Tabs
-        self.tabs = QTabWidget()
-        self.setup_chat_tab()
-        self.setup_laptop_tab()
-        self.setup_tools_tab()
-        self.setup_quick_actions_tab()
-        self.setup_wallpapers_tab()
-        main_layout.addWidget(self.tabs)
-
-        # Pomodoro notifications
-        self.pomodoro.tick.connect(self._update_pomo_display)
-        self.pomodoro.session_completed.connect(self._on_pomo_done)
-
-    def closeEvent(self, event):
-        event.ignore()
-        self.hide()
-
-    def reject(self):
-        self.hide()
-
-    def _on_voice_mode_changed(self):
-        mode = self.voice_mode_combo.currentData()
-        self.character.voice_worker.set_voice_mode(mode)
-
-    def setup_chat_tab(self):
-        tab = QWidget()
-        layout = QVBoxLayout(tab)
-        layout.setContentsMargins(10, 10, 10, 10)
-
-        # Scenic Kyoto Animation banner
-        banner_path = os.path.join(WALLPAPER_DIR, "01_chitanda_sweet_smile.png")
-        if not os.path.exists(banner_path):
-            banner_path = os.path.join(WALLPAPER_DIR, "04_chitanda_classic_literature.jpg")
-        if os.path.exists(banner_path):
-            banner_lbl = QLabel()
-            banner_lbl.setFixedHeight(95)
-            banner_lbl.setScaledContents(True)
-            banner_pix = QPixmap(banner_path).scaled(
-                500, 95,
-                Qt.AspectRatioMode.KeepAspectRatioByExpanding,
-                Qt.TransformationMode.SmoothTransformation
-            )
-            banner_lbl.setPixmap(banner_pix)
-            banner_lbl.setStyleSheet("border-radius: 8px; border: 1px solid #3b2656;")
-            layout.addWidget(banner_lbl)
-
-        self.chat_display = QTextEdit()
-        self.chat_display.setReadOnly(True)
         greeting = self.character.get_time_appropriate_greeting()
         self.chat_display.append(
-            f"<span style='color: #ec4899; font-weight: bold;'>Chitanda:</span> {greeting}"
+            f"<div style='margin-bottom: 6px;'>"
+            f"<b style='color: #ec4899;'>🌸 Chitanda:</b> {greeting} "
+            f"<span style='color: #f472b6;'>(私、気になります！)</span>"
+            f"</div>"
         )
-        layout.addWidget(self.chat_display)
+        container_layout.addWidget(self.chat_display)
 
-        # Quick interactive helper buttons
-        help_row = QHBoxLayout()
-        btn_quiz = QPushButton("❓ Quiz Me on My Topic")
-        btn_quiz.setStyleSheet("background-color: #261b40; color: #ec4899; font-size: 11px; padding: 5px 10px;")
-        btn_quiz.clicked.connect(self._on_click_quiz)
+        # --- QUICK ACTION CHIPS ---
+        chips_layout = QHBoxLayout()
+        chips_layout.setSpacing(5)
 
-        btn_solve = QPushButton("🧩 Help Me Solve a Problem")
-        btn_solve.setStyleSheet("background-color: #261b40; color: #c084fc; font-size: 11px; padding: 5px 10px;")
-        btn_solve.clicked.connect(self._on_click_help_solve)
+        chip_style = """
+            QPushButton {
+                background-color: #1f1438;
+                color: #e9d5ff;
+                border: 1px solid #3d2363;
+                border-radius: 11px;
+                padding: 4px 8px;
+                font-size: 11px;
+                font-weight: 500;
+            }
+            QPushButton:hover {
+                background-color: #ec4899;
+                color: white;
+                border: 1px solid #ec4899;
+            }
+        """
 
-        btn_review = QPushButton("📋 Review My Tasks")
-        btn_review.setStyleSheet("background-color: #261b40; color: #a78bfa; font-size: 11px; padding: 5px 10px;")
-        btn_review.clicked.connect(self._on_click_review_tasks)
+        chips = [
+            ("⏱️ 30m Study", self._chip_study),
+            ("🔋 Battery", self._chip_battery),
+            ("❓ Quiz Me", self._chip_quiz),
+            ("🍵 Break", self._chip_break),
+            ("📸 Screen", self._chip_screenshot),
+        ]
 
-        help_row.addWidget(btn_quiz)
-        help_row.addWidget(btn_solve)
-        help_row.addWidget(btn_review)
-        layout.addLayout(help_row)
+        for label, callback in chips:
+            btn = QPushButton(label)
+            btn.setStyleSheet(chip_style)
+            btn.clicked.connect(callback)
+            chips_layout.addWidget(btn)
 
-        # Input row
+        container_layout.addLayout(chips_layout)
+
+        # --- INPUT ROW ---
         input_row = QHBoxLayout()
+        input_row.setSpacing(6)
+
         self.chat_input = QLineEdit()
-        self.chat_input.setPlaceholderText("Talk to Chitanda (e.g. 'I am studying now, remind me in 30 mins to take a break')...")
+        self.chat_input.setPlaceholderText("Message Chitanda (or give laptop command)...")
+        self.chat_input.setStyleSheet("""
+            QLineEdit {
+                background-color: #170f2d;
+                color: #fdf2f8;
+                border: 1px solid #3d2363;
+                border-radius: 10px;
+                padding: 8px 12px;
+                font-size: 12px;
+            }
+            QLineEdit:focus {
+                border: 1px solid #ec4899;
+            }
+        """)
         self.chat_input.returnPressed.connect(self.send_chat_message)
 
         send_btn = QPushButton("Send")
+        send_btn.setFixedHeight(34)
+        send_btn.setStyleSheet("""
+            QPushButton {
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 #db2777, stop:1 #be185d);
+                color: white;
+                border: none;
+                border-radius: 10px;
+                padding: 0 14px;
+                font-weight: bold;
+                font-size: 12px;
+            }
+            QPushButton:hover {
+                background: #ec4899;
+            }
+            QPushButton:pressed {
+                background: #9d174d;
+            }
+        """)
         send_btn.clicked.connect(self.send_chat_message)
 
         input_row.addWidget(self.chat_input)
         input_row.addWidget(send_btn)
-        layout.addLayout(input_row)
+        container_layout.addLayout(input_row)
 
-        # Footer actions
-        actions_row = QHBoxLayout()
-        clear_btn = QPushButton("Reset Memory")
-        clear_btn.setStyleSheet("background-color: #261b40; color: #a78bfa; font-size: 11px;")
-        clear_btn.clicked.connect(self.clear_chat_history)
-        actions_row.addWidget(clear_btn)
+        root_layout.addWidget(self.container)
 
-        hide_btn = QPushButton("🙈 Hide Chitanda (Study Mode)")
-        hide_btn.setStyleSheet("background-color: #261b40; color: #ec4899; font-size: 11px;")
-        hide_btn.clicked.connect(self._on_click_hide)
-        actions_row.addWidget(hide_btn)
+    # -------------------------------------------------------------
+    # WINDOW DRAGGING & POSITIONING
+    # -------------------------------------------------------------
+    def mousePressEvent(self, event):
+        if event.button() == Qt.MouseButton.LeftButton:
+            # Allow dragging window from any point near top 50 pixels
+            if event.position().y() < 55:
+                self._drag_pos = event.globalPosition().toPoint() - self.frameGeometry().topLeft()
+                event.accept()
 
-        actions_row.addStretch()
+    def mouseMoveEvent(self, event):
+        if self._drag_pos is not None and event.buttons() & Qt.MouseButton.LeftButton:
+            self.move(event.globalPosition().toPoint() - self._drag_pos)
+            event.accept()
 
-        self.status_label = QLabel("Listening")
-        self.status_label.setStyleSheet("color: #a78bfa; font-size: 11px;")
-        actions_row.addWidget(self.status_label)
+    def mouseReleaseEvent(self, event):
+        self._drag_pos = None
 
-        layout.addLayout(actions_row)
-        self.tabs.addTab(tab, "💬 Conversation")
+    def show_near_mascot(self, mascot):
+        """Intelligently position this compact chat box right beside the desktop mascot."""
+        screen = QGuiApplication.primaryScreen().availableGeometry()
+        target_x = mascot.x() - self.width() - 10
+        target_y = mascot.y() + mascot.height() - self.height()
 
-    def _on_click_hide(self):
-        self.chat_display.append("<span style='color: #ec4899;'>[Chitanda]: Going invisible now. Focus on your study! I'll pop back up for your break!</span>")
-        self.character.say("Going invisible now. Focus with all your heart! See you at break time!", voice=self.voice_btn.isChecked())
-        QTimer.singleShot(1500, self.character.hide_character)
-        self.hide()
+        if target_x < 10:
+            target_x = mascot.x() + mascot.width() + 10
 
-    def _on_click_quiz(self):
-        prompt = "I'm curious! As Eru Chitanda, please quiz me with one thought-provoking question related to my study and exam preparation (e.g. computer science, engineering, or logical deduction). Ask the question with genuine curiosity and tell me you're excited to see my answer!"
-        self.process_user_prompt(prompt)
+        target_x = max(10, min(target_x, screen.width() - self.width() - 10))
+        target_y = max(10, min(target_y, screen.height() - self.height() - 40))
 
-    def _on_click_help_solve(self):
-        self.chat_display.append("<span style='color: #ec4899; font-weight: bold;'>Chitanda:</span> I would love to help you solve it! Please type or paste the difficult question, error message, or concept you are working on, and let's deduce the answer together! (私、気になります！)")
-        self.character.say("I would love to help! Tell me about the problem, and let's solve it together!", voice=self.voice_btn.isChecked())
+        self.move(target_x, target_y)
+        self.show()
+        self.raise_()
+        self.activateWindow()
         self.chat_input.setFocus()
 
-    def _on_click_review_tasks(self):
-        tasks = self.memory.user_profile.get("tasks", [])
-        goals = self.memory.user_profile.get("goals", [])
-        if tasks:
-            task_str = ", ".join(f"'{t}'" for t in tasks)
-            prompt = f"As Eru Chitanda, check in on my current tasks: {task_str} and my goals: {', '.join(goals)}. Ask me which one I'm working on right now and offer your encouragement and help!"
-        else:
-            prompt = "As Eru Chitanda, warmly ask me what my main goals and tasks are for today so you can remember them and help me stay on track!"
-        self.process_user_prompt(prompt)
-
-    def setup_tools_tab(self):
-        tab = QWidget()
-        layout = QVBoxLayout(tab)
-        layout.setContentsMargins(10, 10, 10, 10)
-
-        # Study Session Frame
-        study_frame = QFrame()
-        study_frame.setStyleSheet("background: #130d24; border-radius: 8px; padding: 10px; border: 1px solid #ec4899;")
-        study_layout = QVBoxLayout(study_frame)
-
-        study_title = QLabel("⏱️ Active Study & Break Session (Custom Timers)")
-        study_title.setFont(QFont("Segoe UI", 10, QFont.Weight.Bold))
-        study_title.setStyleSheet("color: #ec4899;")
-        study_layout.addWidget(study_title)
-
-        study_row = QHBoxLayout()
-        self.study_time_label = QLabel("30:00 (Idle)")
-        self.study_time_label.setFont(QFont("Segoe UI", 22, QFont.Weight.Bold))
-        self.study_time_label.setStyleSheet("color: #fdf2f8;")
-        study_row.addWidget(self.study_time_label)
-
-        study_row.addStretch()
-
-        btn_start_30 = QPushButton("Start 30m Study (Auto-Hide)")
-        btn_start_30.clicked.connect(lambda: self._start_custom_study(30, 3, hide=True))
-        study_row.addWidget(btn_start_30)
-
-        btn_stop = QPushButton("Stop")
-        btn_stop.setStyleSheet("background-color: #ef4444;")
-        btn_stop.clicked.connect(self._stop_study_session)
-        study_row.addWidget(btn_stop)
-
-        study_layout.addLayout(study_row)
-        layout.addWidget(study_frame)
-
-        # Pomodoro Frame
-        pomo_frame = QFrame()
-        pomo_frame.setStyleSheet("background: #130d24; border-radius: 8px; padding: 10px; margin-top: 6px; border: 1px solid #3b2656;")
-        pomo_layout = QVBoxLayout(pomo_frame)
-
-        pomo_title = QLabel("🍵 Quick Focus (Pomodoro)")
-        pomo_title.setFont(QFont("Segoe UI", 10, QFont.Weight.Bold))
-        pomo_title.setStyleSheet("color: #c084fc;")
-        pomo_layout.addWidget(pomo_title)
-
-        pomo_row = QHBoxLayout()
-        self.pomo_time_label = QLabel("25:00")
-        self.pomo_time_label.setFont(QFont("Segoe UI", 20, QFont.Weight.Bold))
-        self.pomo_time_label.setStyleSheet("color: #fdf2f8;")
-        pomo_row.addWidget(self.pomo_time_label)
-
-        pomo_row.addStretch()
-
-        start_25_btn = QPushButton("Focus (25m)")
-        start_25_btn.clicked.connect(lambda: self.start_pomodoro(25))
-        pomo_row.addWidget(start_25_btn)
-
-        break_5_btn = QPushButton("Tea Break (5m)")
-        break_5_btn.setStyleSheet("background-color: #261b40;")
-        break_5_btn.clicked.connect(lambda: self.start_pomodoro_break(5))
-        pomo_row.addWidget(break_5_btn)
-
-        pomo_layout.addLayout(pomo_row)
-        layout.addWidget(pomo_frame)
-
-        # Persistent Memory Tasks Frame
-        tasks_label = QLabel("📝 Chitanda's Memory & Daily Tasks (Saved across sessions)")
-        tasks_label.setFont(QFont("Segoe UI", 10, QFont.Weight.Bold))
-        tasks_label.setStyleSheet("color: #ec4899; margin-top: 6px;")
-        layout.addWidget(tasks_label)
-
-        self.task_list = QListWidget()
-        self.task_list.itemClicked.connect(self._on_task_clicked)
-        self.refresh_task_list()
-        layout.addWidget(self.task_list)
-
-        task_input_row = QHBoxLayout()
-        self.task_input = QLineEdit()
-        self.task_input.setPlaceholderText("Add a task to Chitanda's memory (e.g. GATE Revision)...")
-        self.task_input.returnPressed.connect(self.add_task)
-
-        add_task_btn = QPushButton("Add Task")
-        add_task_btn.clicked.connect(self.add_task)
-
-        clear_done_btn = QPushButton("Clear Done")
-        clear_done_btn.setStyleSheet("background-color: #261b40;")
-        clear_done_btn.clicked.connect(self.clear_completed_tasks)
-
-        task_input_row.addWidget(self.task_input)
-        task_input_row.addWidget(add_task_btn)
-        task_input_row.addWidget(clear_done_btn)
-        layout.addLayout(task_input_row)
-
-        self.tabs.addTab(tab, "🎯 Focus & Tasks")
-
-    def _start_custom_study(self, study_mins, break_mins, hide=True):
-        self.character.start_study_cycle(study_mins, break_mins, hide=hide)
-        self.chat_display.append(
-            f"<span style='color: #ec4899; font-weight: bold;'>Chitanda:</span> "
-            f"Study session started! We will focus for {study_mins} minutes, followed by a sweet {break_mins}-minute break! "
-            f"{'I will hide quietly so you have complete focus. See you at break time!' if hide else 'I will cheer you on quietly right here!'}"
-        )
-        if hide:
-            QTimer.singleShot(2500, self.hide)
-
-    def _stop_study_session(self):
-        self.character.study_manager.stop_session()
-        self.study_time_label.setText("30:00 (Idle)")
-        self.chat_display.append("<span style='color: #ef4444;'>[Chitanda]: Study session paused. Remember to rest if you feel tired!</span>")
-
-    def _update_study_timer_display(self, time_str, remaining_secs, phase):
-        phase_name = "Study Focus" if phase == "study" else "Break Time"
-        self.study_time_label.setText(f"{time_str} ({phase_name})")
-
-    def setup_quick_actions_tab(self):
-        tab = QWidget()
-        layout = QVBoxLayout(tab)
-        layout.setContentsMargins(12, 12, 12, 12)
-
-        quotes_title = QLabel("🌸 Eru Chitanda's Soundboard & Catchphrases")
-        quotes_title.setFont(QFont("Segoe UI", 10, QFont.Weight.Bold))
-        quotes_title.setStyleSheet("color: #ec4899;")
-        layout.addWidget(quotes_title)
-
-        grid = QGridLayout()
-        grid.setSpacing(8)
-
-        btn_curious = QPushButton("✨ 「私、気になります！」\n(I'm Curious!)")
-        btn_curious.clicked.connect(lambda: self.play_chitanda_line(
-            "私、気になります！詳しく教えていただけませんか？",
-            "I'm curious! Could you please tell me more about it?"
-        ))
-        grid.addWidget(btn_curious, 0, 0)
-
-        btn_tea = QPushButton("🍵 「お茶を淹れましょうか？」\n(Offer Warm Tea)")
-        btn_tea.clicked.connect(lambda: self.play_chitanda_line(
-            "お茶を淹れましたよ。温かいお茶を飲んで、少し休んでくださいね。",
-            "I've brewed some fresh warm tea. Please take a gentle sip and rest your mind."
-        ))
-        grid.addWidget(btn_tea, 0, 1)
-
-        btn_cheer = QPushButton("📚 「古典部で一緒に！」\n(Study Encouragement)")
-        btn_cheer.clicked.connect(lambda: self.play_chitanda_line(
-            "古典部で一緒に頑張りましょう！あなたの努力、ずっと応援しています！",
-            "Let's study hard together in the Classics Club! I believe in your success with all my heart!"
-        ))
-        grid.addWidget(btn_cheer, 1, 0)
-
-        btn_mystery = QPushButton("💡 「きっと答えが見つかります」\n(Solve Any Puzzle)")
-        btn_mystery.clicked.connect(lambda: self.play_chitanda_line(
-            "どんなに難しい問題でも、一緒に考えればきっと答えが見つかります！",
-            "No matter how difficult the problem seems, if we think about it together, we will find the answer!"
-        ))
-        grid.addWidget(btn_mystery, 1, 1)
-
-        layout.addLayout(grid)
-        layout.addSpacing(10)
-
-        clip_title = QLabel("🔍 Chitanda's Curious Clipboard Assistant")
-        clip_title.setFont(QFont("Segoe UI", 10, QFont.Weight.Bold))
-        clip_title.setStyleSheet("color: #ec4899;")
-        layout.addWidget(clip_title)
-
-        clip_desc = QLabel("Copy any text or question to your clipboard, then click below:")
-        clip_desc.setStyleSheet("color: #a78bfa; font-size: 11px;")
-        layout.addWidget(clip_desc)
-
-        btn_investigate = QPushButton("✨ Deeply Explore & Explain (Curiosity Mode)")
-        btn_investigate.clicked.connect(lambda: self.run_clipboard_action("investigate"))
-        layout.addWidget(btn_investigate)
-
-        btn_summarize = QPushButton("📄 Sweet & Clear Summary")
-        btn_summarize.clicked.connect(lambda: self.run_clipboard_action("summarize"))
-        layout.addWidget(btn_summarize)
-
-        btn_polish = QPushButton("✍️ Clean Up & Polish Writing")
-        btn_polish.clicked.connect(lambda: self.run_clipboard_action("polish"))
-        layout.addWidget(btn_polish)
-
-        layout.addStretch()
-        self.tabs.addTab(tab, "💡 Quick Assist")
-
-    def setup_wallpapers_tab(self):
-        tab = QWidget()
-        layout = QVBoxLayout(tab)
-        layout.setContentsMargins(10, 10, 10, 10)
-
-        intro_lbl = QLabel("🖼️ Hyouka & Chitanda Scene Gallery")
-        intro_lbl.setFont(QFont("Segoe UI", 10, QFont.Weight.Bold))
-        intro_lbl.setStyleSheet("color: #ec4899;")
-        layout.addWidget(intro_lbl)
-
-        sub_lbl = QLabel("Click any scene to preview or set as your Windows Desktop Wallpaper:")
-        sub_lbl.setStyleSheet("color: #a78bfa; font-size: 11px;")
-        layout.addWidget(sub_lbl)
-
-        self.wp_preview_lbl = QLabel("Select an image below")
-        self.wp_preview_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.wp_preview_lbl.setFixedHeight(160)
-        self.wp_preview_lbl.setStyleSheet("background: #0d091a; border: 1px solid #3b2656; border-radius: 8px;")
-        layout.addWidget(self.wp_preview_lbl)
-
-        btn_row = QHBoxLayout()
-        self.selected_wp_path = None
-        self.set_wp_btn = QPushButton("🖥️ Set as My Desktop Wallpaper")
-        self.set_wp_btn.setEnabled(False)
-        self.set_wp_btn.clicked.connect(self._set_current_wallpaper)
-        btn_row.addWidget(self.set_wp_btn)
-        layout.addLayout(btn_row)
-
-        self.wp_list = QListWidget()
-        self.wp_list.itemClicked.connect(self._on_wallpaper_selected)
-
-        if os.path.exists(WALLPAPER_DIR):
-            files = sorted(os.listdir(WALLPAPER_DIR))
-            for f in files:
-                if f.endswith(('.jpg', '.png')):
-                    clean_name = f.replace('.jpg', '').replace('.png', '').replace('_', ' ').title()
-                    item = QListWidgetItem(f"🌸 {clean_name}")
-                    item.setData(Qt.ItemDataRole.UserRole, os.path.join(WALLPAPER_DIR, f))
-                    self.wp_list.addItem(item)
-
-        layout.addWidget(self.wp_list)
-        self.tabs.addTab(tab, "🖼️ Wallpapers")
-
-    def _on_wallpaper_selected(self, item):
-        path = item.data(Qt.ItemDataRole.UserRole)
-        if path and os.path.exists(path):
-            self.selected_wp_path = path
-            pix = QPixmap(path).scaled(
-                450, 160,
-                Qt.AspectRatioMode.KeepAspectRatio,
-                Qt.TransformationMode.SmoothTransformation
-            )
-            self.wp_preview_lbl.setPixmap(pix)
-            self.set_wp_btn.setEnabled(True)
-
-    def _set_current_wallpaper(self):
-        if self.selected_wp_path and os.path.exists(self.selected_wp_path):
-            abs_path = os.path.abspath(self.selected_wp_path)
-            ctypes.windll.user32.SystemParametersInfoW(20, 0, abs_path, 3)
-            self.character.say("Your desktop wallpaper is set! It looks so wonderful!", voice=self.voice_btn.isChecked())
-
-    def setup_laptop_tab(self):
-        tab = QWidget()
-        layout = QVBoxLayout(tab)
-        layout.setContentsMargins(12, 12, 12, 12)
-
-        title = QLabel("💻 Chitanda's Direct Laptop Access & Tools")
-        title.setFont(QFont("Segoe UI", 10, QFont.Weight.Bold))
-        title.setStyleSheet("color: #ec4899;")
-        layout.addWidget(title)
-
-        desc = QLabel("I have direct access to your laptop hardware, apps, and system settings! Click any tool below or tell me in chat:")
-        desc.setStyleSheet("color: #a78bfa; font-size: 11px;")
-        desc.setWordWrap(True)
-        layout.addWidget(desc)
-
-        # Status & Security Frame
-        status_frame = QFrame()
-        status_frame.setStyleSheet("background: #130d24; border-radius: 8px; padding: 10px; border: 1px solid #3b2656;")
-        status_layout = QGridLayout(status_frame)
-        status_layout.setSpacing(8)
-
-        btn_battery = QPushButton("🔋 Check Battery Status")
-        btn_battery.clicked.connect(lambda: self._exec_laptop_ui("battery"))
-        status_layout.addWidget(btn_battery, 0, 0)
-
-        btn_health = QPushButton("📊 System Health (CPU/RAM/Disk)")
-        btn_health.clicked.connect(lambda: self._exec_laptop_ui("health"))
-        status_layout.addWidget(btn_health, 0, 1)
-
-        btn_shot = QPushButton("📸 Take Screenshot")
-        btn_shot.clicked.connect(lambda: self._exec_laptop_ui("screenshot"))
-        status_layout.addWidget(btn_shot, 1, 0)
-
-        btn_lock = QPushButton("🔒 Lock Laptop (Security)")
-        btn_lock.setStyleSheet("background-color: #831843;")
-        btn_lock.clicked.connect(lambda: self._exec_laptop_ui("lock"))
-        status_layout.addWidget(btn_lock, 1, 1)
-
-        layout.addWidget(status_frame)
-
-        # Quick Controls Frame
-        ctrl_title = QLabel("🔊 Audio & Desktop Controls")
-        ctrl_title.setFont(QFont("Segoe UI", 9, QFont.Weight.Bold))
-        ctrl_title.setStyleSheet("color: #c084fc; margin-top: 6px;")
-        layout.addWidget(ctrl_title)
-
-        ctrl_row = QHBoxLayout()
-        btn_vol_up = QPushButton("🔊 Vol Up")
-        btn_vol_up.clicked.connect(lambda: self._exec_laptop_ui("vol_up"))
-        btn_vol_down = QPushButton("🔉 Vol Down")
-        btn_vol_down.clicked.connect(lambda: self._exec_laptop_ui("vol_down"))
-        btn_mute = QPushButton("🔇 Mute Toggle")
-        btn_mute.clicked.connect(lambda: self._exec_laptop_ui("mute"))
-        btn_show_desk = QPushButton("🖥️ Show Desktop")
-        btn_show_desk.clicked.connect(lambda: self._exec_laptop_ui("desktop"))
-
-        ctrl_row.addWidget(btn_vol_up)
-        ctrl_row.addWidget(btn_vol_down)
-        ctrl_row.addWidget(btn_mute)
-        ctrl_row.addWidget(btn_show_desk)
-        layout.addLayout(ctrl_row)
-
-        # Quick Launch Apps Frame
-        apps_title = QLabel("🚀 Launch Windows Applications")
-        apps_title.setFont(QFont("Segoe UI", 9, QFont.Weight.Bold))
-        apps_title.setStyleSheet("color: #c084fc; margin-top: 6px;")
-        layout.addWidget(apps_title)
-
-        apps_grid = QGridLayout()
-        apps_grid.setSpacing(6)
-
-        apps = [
-            ("📝 Notepad", "notepad"),
-            ("🧮 Calculator", "calculator"),
-            ("💻 VS Code", "code"),
-            ("📁 Downloads", "downloads"),
-            ("🌐 Google Chrome", "chrome"),
-            ("⚙️ Windows Settings", "settings")
-        ]
-
-        for idx, (label, cmd) in enumerate(apps):
-            b = QPushButton(label)
-            b.setStyleSheet("background-color: #261b40; color: #fdf2f8;")
-            b.clicked.connect(lambda _, c=cmd: self._exec_laptop_ui(f"app:{c}"))
-            apps_grid.addWidget(b, idx // 2, idx % 2)
-
-        layout.addLayout(apps_grid)
-        layout.addStretch()
-        self.tabs.addTab(tab, "💻 Laptop Control")
-
-    def _exec_laptop_ui(self, action_key: str):
-        if action_key == "battery":
-            reply = LaptopController.get_battery_info()
-            self.tabs.setCurrentIndex(0)
-            self.chat_display.append(f"<span style='color: #ec4899; font-weight: bold;'>Chitanda:</span> {reply}")
-            self.character.say(reply, voice=self.voice_btn.isChecked())
-        elif action_key == "health":
-            reply = LaptopController.get_system_health()
-            self.tabs.setCurrentIndex(0)
-            self.chat_display.append(f"<span style='color: #ec4899; font-weight: bold;'>Chitanda:</span><pre style='color: #e9d5ff;'>{reply}</pre>")
-            self.character.say("Here is your current laptop health report!", voice=self.voice_btn.isChecked())
-        elif action_key == "lock":
-            reply = LaptopController.lock_laptop()
-            self.tabs.setCurrentIndex(0)
-            self.chat_display.append(f"<span style='color: #ec4899; font-weight: bold;'>Chitanda:</span> {reply}")
-        elif action_key == "screenshot":
-            self.hide()
-            QTimer.singleShot(400, lambda: self._execute_screenshot("screenshot"))
-        elif action_key == "vol_up":
-            LaptopController.volume_up()
-        elif action_key == "vol_down":
-            LaptopController.volume_down()
-        elif action_key == "mute":
-            LaptopController.volume_mute_toggle()
-        elif action_key == "desktop":
-            LaptopController.show_desktop()
-        elif action_key.startswith("app:"):
-            app_name = action_key.split(":", 1)[1]
-            reply = LaptopController.open_application(app_name)
-            self.tabs.setCurrentIndex(0)
-            self.chat_display.append(f"<span style='color: #ec4899; font-weight: bold;'>Chitanda:</span> {reply}")
-            self.character.say(reply, voice=self.voice_btn.isChecked())
-
-    def _execute_screenshot(self, orig_text):
-        reply = LaptopController.take_screenshot()
-        self.show()
-        self.chat_display.append(f"<span style='color: #ec4899; font-weight: bold;'>Chitanda:</span> {reply}")
-        self.character.say("I took a screenshot for you and saved it to your Pictures folder!", voice=self.voice_btn.isChecked())
-
-    def play_chitanda_line(self, ja_text: str, en_text: str):
-        is_ja = (self.voice_mode_combo.currentData() == "ja-chitanda")
-        spoken = ja_text if is_ja else en_text
-        self.character.say(spoken, voice=self.voice_btn.isChecked())
-        self.character.trigger_friendly_reaction(3000)
-
-    def toggle_voice(self):
+    def _toggle_voice(self):
         enabled = self.voice_btn.isChecked()
-        self.voice_btn.setText("🔊 ON" if enabled else "🔇 OFF")
+        self.voice_btn.setText("🔊" if enabled else "🔇")
         if not enabled:
             self.character.voice_worker.stop_current()
 
-    def clear_chat_history(self):
-        self.memory.clear()
-        self.chat_display.clear()
-        self.chat_display.append(
-            "<span style='color: #ec4899; font-weight: bold;'>Chitanda:</span> "
-            "I've refreshed our conversation history! What are you working on now? I'm so curious!"
+    # -------------------------------------------------------------
+    # QUICK CHIP ACTIONS
+    # -------------------------------------------------------------
+    def _chip_study(self):
+        self._start_custom_study(30, 3, hide=True)
+
+    def _chip_battery(self):
+        self._exec_laptop_cmd("battery")
+
+    def _chip_quiz(self):
+        self.process_user_prompt(
+            "I'm curious! As Eru Chitanda, please quiz me with one thought-provoking question "
+            "related to my study and exam preparation. Ask with genuine curiosity!"
         )
 
-    def refresh_task_list(self):
-        self.task_list.clear()
-        for idx, item in enumerate(self.task_manager.tasks):
-            text = item["text"]
-            done = item.get("done", False)
-            prefix = "✔ " if done else "◻ "
-            list_item = QListWidgetItem(f"{prefix}{text}")
-            if done:
-                list_item.setForeground(Qt.GlobalColor.gray)
-            self.task_list.addItem(list_item)
-
-    def add_task(self):
-        text = self.task_input.text().strip()
-        if text:
-            self.task_manager.add_task(text)
-            self.memory.add_task(text)
-            self.task_input.clear()
-            self.refresh_task_list()
-
-    def _on_task_clicked(self, item):
-        row = self.task_list.row(item)
-        self.task_manager.toggle_task(row)
-        self.refresh_task_list()
-
-    def clear_completed_tasks(self):
-        # Remove from memory as well
-        completed = [t["text"] for t in self.task_manager.tasks if t.get("done", False)]
-        for t_text in completed:
-            self.memory.remove_task(t_text)
-        self.task_manager.clear_completed()
-        self.refresh_task_list()
-
-    def start_pomodoro(self, minutes):
-        self.pomodoro.start_focus(minutes)
-        msg = "25分間、集中して頑張りましょう！応援しています！" if self.voice_mode_combo.currentData() == "ja-chitanda" else "Let's focus with all our energy for 25 minutes! I'm cheering for you!"
-        self.character.say(msg, voice=self.voice_btn.isChecked())
-        self.character.trigger_friendly_reaction()
-
-    def start_pomodoro_break(self, minutes):
-        self.pomodoro.start_break(minutes)
-        msg = "休憩の時間ですよ。温かいお茶でも飲んでゆっくりしてくださいね。" if self.voice_mode_combo.currentData() == "ja-chitanda" else "It's break time! Please stretch, relax, and have some warm tea."
+    def _chip_break(self):
+        msg = "It's time for a gentle tea break! Please stretch, rest your eyes, and take a refreshing sip of water or warm tea!"
+        self.chat_display.append(f"<div style='margin-bottom: 6px;'><b style='color: #ec4899;'>🌸 Chitanda:</b> {msg}</div>")
         self.character.say(msg, voice=self.voice_btn.isChecked())
 
-    def _update_pomo_display(self, formatted_str, remaining):
-        self.pomo_time_label.setText(formatted_str)
+    def _chip_screenshot(self):
+        self._exec_laptop_cmd("screenshot")
 
-    def _on_pomo_done(self, mode):
-        if mode == "focus":
-            msg = "Focus session completed! You did fantastic work! Please take a 5-minute break now!"
-        else:
-            msg = "Break is over! Are you ready to continue our goals together?"
-        self.character.say(msg, voice=self.voice_btn.isChecked())
+    # -------------------------------------------------------------
+    # COMPATIBILITY HOOKS (CALLED BY CHARACTER / TIMERS)
+    # -------------------------------------------------------------
+    def _start_custom_study(self, study_mins=30, break_mins=3, hide=True):
+        self.character.start_study_cycle(study_mins, break_mins, hide=hide)
+        reply = (
+            f"Study session started! We will focus diligently for {study_mins} minutes, "
+            f"followed by a relaxing {break_mins}-minute break. "
+            f"{'I will quietly hide now so you have zero distractions!' if hide else 'I will cheer you on quietly right here!'}"
+        )
+        self.chat_display.append(f"<div style='margin-bottom: 6px;'><b style='color: #ec4899;'>🌸 Chitanda:</b> {reply}</div>")
+        if hide:
+            QTimer.singleShot(2200, self.hide)
 
-    def run_clipboard_action(self, action_type):
-        clipboard = QGuiApplication.clipboard()
-        text = clipboard.text().strip()
-        if not text:
-            self.chat_display.append("<span style='color: #ef4444;'>[Chitanda]: Your clipboard is empty. Please copy some text first!</span>")
-            self.tabs.setCurrentIndex(0)
+    def _update_study_timer_display(self, time_str, remaining_secs, phase):
+        phase_name = "Study Focus" if phase == "study" else "Break Time"
+        self.status_lbl.setText(f"⏱️ {time_str} ({phase_name})")
+
+    def run_clipboard_action(self, action_type="summarize"):
+        clip = QGuiApplication.clipboard().text().strip()
+        if not clip:
+            self.chat_display.append("<div style='color: #ef4444;'>[Chitanda]: Clipboard is empty. Copy some text first!</div>")
             return
-
-        prompts = {
-            "investigate": f"I'm very curious about this! Please explore and explain the core ideas and significance clearly:\n\n{text}",
-            "summarize": f"Please provide a sweet, elegant, and concise summary of this text highlighting the main takeaways:\n\n{text}",
-            "polish": f"Please help me review and polish this writing so that it sounds natural, clear, and well-structured:\n\n{text}"
-        }
-        self.ask_predefined(prompts[action_type])
-
-    def ask_predefined(self, prompt):
-        self.tabs.setCurrentIndex(0)
+        prompt = f"Please provide a sweet, elegant summary of this text highlighting the main takeaways:\n\n{clip}"
         self.process_user_prompt(prompt)
 
     # -------------------------------------------------------------
-    # REAL INTENT & COMMAND EXECUTION PARSER
+    # MESSAGE & COMMAND PROCESSING
     # -------------------------------------------------------------
     def send_chat_message(self):
         text = self.chat_input.text().strip()
@@ -763,203 +348,181 @@ class ChatWindow(QDialog):
 
         lower = text.lower()
 
+        # Display User message
+        self.chat_display.append(
+            f"<div style='margin-bottom: 6px; text-align: right;'>"
+            f"<span style='background-color: #24163b; border: 1px solid #4a2d6b; border-radius: 8px; padding: 4px 8px; color: #38bdf8;'>"
+            f"<b>You:</b> {text}"
+            f"</span></div>"
+        )
+
         # 1. EXIT / DISMISS INTENT
         exit_phrases = ["you can go", "go away", "leave", "goodbye", "bye", "exit", "quit", "shut down", "dismiss"]
         if any(p == lower or lower.startswith(p + " ") or lower.endswith(" " + p) for p in exit_phrases):
-            self.chat_display.append(f"<span style='color: #38bdf8; font-weight: bold;'>You:</span> {text}")
-            farewell = "Understood! You've done wonderful work today. Please rest well, and call me back anytime! See you soon!"
-            self.chat_display.append(f"<span style='color: #ec4899; font-weight: bold;'>Chitanda:</span> {farewell}")
+            farewell = "Understood! You've worked so hard today. Please rest well, and call me back anytime! See you soon!"
+            self.chat_display.append(f"<div style='margin-bottom: 6px;'><b style='color: #ec4899;'>🌸 Chitanda:</b> {farewell}</div>")
             self.character.say(farewell, voice=self.voice_btn.isChecked())
-            QTimer.singleShot(3500, self.character.dismiss_companion)
+            QTimer.singleShot(3000, self.character.dismiss_companion)
             return
 
-        # 2. HIDE COMMAND ("hide now", "hide", "only show when it is break time")
-        if any(h in lower for h in ["hide now", "only show when it is break", "hide until break", "go invisible", "disappear"]):
-            self.chat_display.append(f"<span style='color: #38bdf8; font-weight: bold;'>You:</span> {text}")
-            reply = "Understood! Going invisible now so nothing distracts you! I'll pop right back up the moment it's break time. Do your best!"
-            self.chat_display.append(f"<span style='color: #ec4899; font-weight: bold;'>Chitanda:</span> {reply}")
+        # 2. HIDE COMMAND
+        if any(h in lower for h in ["hide now", "hide", "go invisible", "disappear"]):
+            reply = "Understood! Going invisible now so nothing distracts you! I'll pop right back up for your break. Do your best!"
+            self.chat_display.append(f"<div style='margin-bottom: 6px;'><b style='color: #ec4899;'>🌸 Chitanda:</b> {reply}</div>")
             self.character.say(reply, voice=self.voice_btn.isChecked())
-            # Hide both character and chat window
-            QTimer.singleShot(3000, self.character.hide_character)
-            QTimer.singleShot(3000, self.hide)
+            QTimer.singleShot(2500, self.character.hide_character)
+            QTimer.singleShot(2500, self.hide)
             return
 
-        # 3. SHOW / UNHIDE COMMAND
+        # 3. SHOW / UNHIDE
         if any(s in lower for s in ["show yourself", "unhide", "where are you", "come back", "show now"]):
-            self.chat_display.append(f"<span style='color: #38bdf8; font-weight: bold;'>You:</span> {text}")
             self.character.show_character()
             reply = "I'm right here! How is your study coming along? I'm so curious!"
-            self.chat_display.append(f"<span style='color: #ec4899; font-weight: bold;'>Chitanda:</span> {reply}")
+            self.chat_display.append(f"<div style='margin-bottom: 6px;'><b style='color: #ec4899;'>🌸 Chitanda:</b> {reply}</div>")
             self.character.say(reply, voice=self.voice_btn.isChecked())
             return
 
-        # 4. STUDY / EXAM / TIMER COMMAND WITH BREAK REMINDERS
-        is_study_intent = any(w in lower for w in ["study", "gate", "exam", "focus", "remind me"])
+        # 4. STUDY & BREAK TIMER COMMAND
+        is_study = any(w in lower for w in ["study", "gate", "exam", "focus", "remind me"])
         has_time = any(w in lower for w in ["minute", "min", "hour"])
-        
-        if is_study_intent and has_time:
-            # Extract study minutes (default 30)
+        if is_study and has_time:
             study_match = re.search(r'(\d+)\s*(?:minute|min)', lower)
             study_mins = int(study_match.group(1)) if study_match else 30
-
-            # Extract break minutes (default 3)
             break_match = re.search(r'break(?:\s+of)?\s*(?:(\d+)\s*to\s*)?(\d+)\s*(?:minute|min)?', lower)
-            if break_match:
-                break_mins = int(break_match.group(2)) if break_match.group(2) else 3
-            else:
-                break_mins = 3
-
-            # Check if user also asked to hide in this message
+            break_mins = int(break_match.group(2)) if break_match and break_match.group(2) else 3
             should_hide = "hide" in lower
-
-            self.chat_display.append(f"<span style='color: #38bdf8; font-weight: bold;'>You:</span> {text}")
-            self.character.start_study_cycle(study_minutes=study_mins, break_minutes=break_mins, hide=should_hide)
-
-            if should_hide:
-                reply = (f"Understood! I've set a {study_mins}-minute focus session for your preparation with a {break_mins}-minute break. "
-                         f"I will quietly hide now so you have zero distractions, and pop back up the second break time arrives! Let's do our best!")
-                QTimer.singleShot(3500, self.hide)
-            else:
-                reply = (f"Understood! I've started your {study_mins}-minute study session with a {break_mins}-minute break. "
-                         f"Stay focused, and I will alert you with your break reminder the moment time is up!")
-
-            self.chat_display.append(f"<span style='color: #ec4899; font-weight: bold;'>Chitanda:</span> {reply}")
-            self.character.say(reply, voice=self.voice_btn.isChecked())
+            self._start_custom_study(study_mins, break_mins, hide=should_hide)
             return
 
-        # 5. TIMER STATUS QUERY
+        # 5. TIMER STATUS
         if any(q in lower for q in ["how much time left", "time remaining", "timer status"]):
-            self.chat_display.append(f"<span style='color: #38bdf8; font-weight: bold;'>You:</span> {text}")
             if self.character.study_manager.is_running:
                 mins = self.character.study_manager.remaining_seconds // 60
                 secs = self.character.study_manager.remaining_seconds % 60
                 phase = "study session" if self.character.study_manager.phase == "study" else "break"
-                reply = f"You have {mins} minutes and {secs} seconds remaining in your {phase}."
+                reply = f"You have {mins}m {secs}s remaining in your {phase}."
             else:
-                reply = "No study timer is currently active. Tell me whenever you would like to start one!"
-            self.chat_display.append(f"<span style='color: #ec4899; font-weight: bold;'>Chitanda:</span> {reply}")
+                reply = "No study timer is active right now. Tell me whenever you would like to begin!"
+            self.chat_display.append(f"<div style='margin-bottom: 6px;'><b style='color: #ec4899;'>🌸 Chitanda:</b> {reply}</div>")
             self.character.say(reply, voice=self.voice_btn.isChecked())
             return
 
         # 6. STOP TIMER
         if any(s in lower for s in ["stop timer", "cancel timer", "stop study"]):
-            self.chat_display.append(f"<span style='color: #38bdf8; font-weight: bold;'>You:</span> {text}")
             self.character.study_manager.stop_session()
-            reply = "Study timer stopped. Please remember to take a nice rest whenever you need it!"
-            self.chat_display.append(f"<span style='color: #ec4899; font-weight: bold;'>Chitanda:</span> {reply}")
+            self.status_lbl.setText("● Ready • Classical Literature Club")
+            reply = "Study timer stopped. Please remember to rest whenever you feel tired!"
+            self.chat_display.append(f"<div style='margin-bottom: 6px;'><b style='color: #ec4899;'>🌸 Chitanda:</b> {reply}</div>")
             self.character.say(reply, voice=self.voice_btn.isChecked())
             return
 
-        # 7. LAPTOP CONTROL: BATTERY
-        if any(b in lower for b in ["battery", "charge level", "battery percent", "how much battery", "power status"]):
-            self.chat_display.append(f"<span style='color: #38bdf8; font-weight: bold;'>You:</span> {text}")
-            reply = LaptopController.get_battery_info()
-            self.chat_display.append(f"<span style='color: #ec4899; font-weight: bold;'>Chitanda:</span> {reply}")
-            self.character.say(reply, voice=self.voice_btn.isChecked())
+        # 7. DIRECT LAPTOP ACTIONS
+        if any(b in lower for b in ["battery", "charge level", "power status"]):
+            self._exec_laptop_cmd("battery")
             return
-
-        # 8. LAPTOP CONTROL: SYSTEM HEALTH / SPECS
-        if any(h in lower for h in ["system health", "laptop health", "cpu usage", "ram usage", "disk space", "laptop status", "laptop specs"]):
-            self.chat_display.append(f"<span style='color: #38bdf8; font-weight: bold;'>You:</span> {text}")
-            reply = LaptopController.get_system_health()
-            self.chat_display.append(f"<span style='color: #ec4899; font-weight: bold;'>Chitanda:</span><pre style='color: #e9d5ff;'>{reply}</pre>")
-            self.character.say("Here is your current laptop health report!", voice=self.voice_btn.isChecked())
+        if any(h in lower for h in ["system health", "laptop health", "cpu usage", "ram usage", "disk space"]):
+            self._exec_laptop_cmd("health")
             return
-
-        # 9. LAPTOP CONTROL: LOCK LAPTOP / PC
-        if any(l in lower for l in ["lock laptop", "lock pc", "lock computer", "lock screen", "lock workstation"]):
-            self.chat_display.append(f"<span style='color: #38bdf8; font-weight: bold;'>You:</span> {text}")
-            reply = LaptopController.lock_laptop()
-            self.chat_display.append(f"<span style='color: #ec4899; font-weight: bold;'>Chitanda:</span> {reply}")
-            self.character.say(reply, voice=self.voice_btn.isChecked())
+        if any(l in lower for l in ["lock laptop", "lock pc", "lock computer", "lock screen"]):
+            self._exec_laptop_cmd("lock")
             return
-
-        # 10. LAPTOP CONTROL: SCREENSHOT
-        if any(s in lower for s in ["take a screenshot", "screenshot", "screen capture", "capture screen"]):
-            self.chat_display.append(f"<span style='color: #38bdf8; font-weight: bold;'>You:</span> {text}")
-            self.hide()
-            QTimer.singleShot(400, lambda: self._execute_screenshot(text))
+        if any(s in lower for s in ["take a screenshot", "screenshot", "screen capture"]):
+            self._exec_laptop_cmd("screenshot")
             return
-
-        # 11. LAPTOP CONTROL: VOLUME & MEDIA
         if any(v in lower for v in ["mute sound", "mute volume", "mute audio", "unmute"]):
-            self.chat_display.append(f"<span style='color: #38bdf8; font-weight: bold;'>You:</span> {text}")
-            reply = LaptopController.volume_mute_toggle()
-            self.chat_display.append(f"<span style='color: #ec4899; font-weight: bold;'>Chitanda:</span> {reply}")
+            self._exec_laptop_cmd("mute")
             return
-        if any(v in lower for v in ["volume up", "increase volume", "louder", "turn up volume", "raise volume"]):
-            self.chat_display.append(f"<span style='color: #38bdf8; font-weight: bold;'>You:</span> {text}")
-            reply = LaptopController.volume_up()
-            self.chat_display.append(f"<span style='color: #ec4899; font-weight: bold;'>Chitanda:</span> {reply}")
+        if any(v in lower for v in ["volume up", "louder", "turn up volume"]):
+            self._exec_laptop_cmd("vol_up")
             return
-        if any(v in lower for v in ["volume down", "decrease volume", "lower volume", "quieter", "turn down volume"]):
-            self.chat_display.append(f"<span style='color: #38bdf8; font-weight: bold;'>You:</span> {text}")
-            reply = LaptopController.volume_down()
-            self.chat_display.append(f"<span style='color: #ec4899; font-weight: bold;'>Chitanda:</span> {reply}")
+        if any(v in lower for v in ["volume down", "quieter", "turn down volume"]):
+            self._exec_laptop_cmd("vol_down")
             return
-        if any(m in lower for m in ["pause music", "play music", "toggle music", "play/pause", "pause video"]):
-            self.chat_display.append(f"<span style='color: #38bdf8; font-weight: bold;'>You:</span> {text}")
-            reply = LaptopController.media_toggle()
-            self.chat_display.append(f"<span style='color: #ec4899; font-weight: bold;'>Chitanda:</span> {reply}")
+        if any(d in lower for d in ["show desktop", "minimize all"]):
+            self._exec_laptop_cmd("desktop")
             return
 
-        # 12. LAPTOP CONTROL: SHOW DESKTOP
-        if any(d in lower for d in ["show desktop", "minimize all", "minimize windows"]):
-            self.chat_display.append(f"<span style='color: #38bdf8; font-weight: bold;'>You:</span> {text}")
-            reply = LaptopController.show_desktop()
-            self.chat_display.append(f"<span style='color: #ec4899; font-weight: bold;'>Chitanda:</span> {reply}")
-            return
-
-        # 13. LAPTOP CONTROL: WEB SEARCH (GOOGLE / YOUTUBE)
+        # 8. WEB SEARCH (GOOGLE / YOUTUBE)
         search_yt = re.search(r'(?:search youtube for|play on youtube|youtube)\s+([^.,;\n]+)', lower)
         if search_yt:
             q = search_yt.group(1).strip()
-            self.chat_display.append(f"<span style='color: #38bdf8; font-weight: bold;'>You:</span> {text}")
             reply = LaptopController.search_youtube(q)
-            self.chat_display.append(f"<span style='color: #ec4899; font-weight: bold;'>Chitanda:</span> {reply}")
+            self.chat_display.append(f"<div style='margin-bottom: 6px;'><b style='color: #ec4899;'>🌸 Chitanda:</b> {reply}</div>")
             self.character.say(reply, voice=self.voice_btn.isChecked())
             return
 
         search_google = re.search(r'(?:search google for|google|look up)\s+([^.,;\n]+)', lower)
         if search_google:
             q = search_google.group(1).strip()
-            self.chat_display.append(f"<span style='color: #38bdf8; font-weight: bold;'>You:</span> {text}")
             reply = LaptopController.search_web(q)
-            self.chat_display.append(f"<span style='color: #ec4899; font-weight: bold;'>Chitanda:</span> {reply}")
+            self.chat_display.append(f"<div style='margin-bottom: 6px;'><b style='color: #ec4899;'>🌸 Chitanda:</b> {reply}</div>")
             self.character.say(reply, voice=self.voice_btn.isChecked())
             return
 
-        # 14. LAPTOP CONTROL: OPEN APPS
+        # 9. OPEN APPS
         open_match = re.search(r'^(?:please\s+)?open\s+(?:the\s+)?([a-zA-Z0-9_\s\.\:\-]+)', lower)
         if open_match:
             target = open_match.group(1).strip()
-            self.chat_display.append(f"<span style='color: #38bdf8; font-weight: bold;'>You:</span> {text}")
             if "." in target and not target.endswith((".exe", ".txt", ".py", ".json")):
                 reply = LaptopController.open_url(target)
             else:
                 reply = LaptopController.open_application(target)
-            self.chat_display.append(f"<span style='color: #ec4899; font-weight: bold;'>Chitanda:</span> {reply}")
+            self.chat_display.append(f"<div style='margin-bottom: 6px;'><b style='color: #ec4899;'>🌸 Chitanda:</b> {reply}</div>")
             self.character.say(reply, voice=self.voice_btn.isChecked())
             return
 
-        # Regular AI query to Ollama
+        # Regular AI query through Ollama
         self.process_user_prompt(text)
 
+    def _exec_laptop_cmd(self, cmd_key):
+        if cmd_key == "battery":
+            reply = LaptopController.get_battery_info()
+            self.chat_display.append(f"<div style='margin-bottom: 6px;'><b style='color: #ec4899;'>🌸 Chitanda:</b> {reply}</div>")
+            self.character.say(reply, voice=self.voice_btn.isChecked())
+        elif cmd_key == "health":
+            reply = LaptopController.get_system_health()
+            self.chat_display.append(f"<div style='margin-bottom: 6px;'><b style='color: #ec4899;'>🌸 Chitanda:</b><pre style='color: #e9d5ff;'>{reply}</pre></div>")
+            self.character.say("Here is your laptop health report!", voice=self.voice_btn.isChecked())
+        elif cmd_key == "lock":
+            reply = LaptopController.lock_laptop()
+            self.chat_display.append(f"<div style='margin-bottom: 6px;'><b style='color: #ec4899;'>🌸 Chitanda:</b> {reply}</div>")
+        elif cmd_key == "screenshot":
+            self.hide()
+            QTimer.singleShot(400, self._finish_screenshot)
+        elif cmd_key == "mute":
+            reply = LaptopController.volume_mute_toggle()
+            self.chat_display.append(f"<div style='margin-bottom: 6px;'><b style='color: #ec4899;'>🌸 Chitanda:</b> {reply}</div>")
+        elif cmd_key == "vol_up":
+            reply = LaptopController.volume_up()
+            self.chat_display.append(f"<div style='margin-bottom: 6px;'><b style='color: #ec4899;'>🌸 Chitanda:</b> {reply}</div>")
+        elif cmd_key == "vol_down":
+            reply = LaptopController.volume_down()
+            self.chat_display.append(f"<div style='margin-bottom: 6px;'><b style='color: #ec4899;'>🌸 Chitanda:</b> {reply}</div>")
+        elif cmd_key == "desktop":
+            LaptopController.show_desktop()
+
+    def _finish_screenshot(self):
+        reply = LaptopController.take_screenshot()
+        self.show()
+        self.chat_display.append(f"<div style='margin-bottom: 6px;'><b style='color: #ec4899;'>🌸 Chitanda:</b> {reply}</div>")
+        self.character.say("Screenshot captured and saved to your Pictures folder!", voice=self.voice_btn.isChecked())
+
+    # -------------------------------------------------------------
+    # OLLAMA AI STREAMING & MEMORY PERSISTENCE
+    # -------------------------------------------------------------
     def process_user_prompt(self, user_text):
         if self.active_worker and self.active_worker.isRunning():
             self.active_worker.cancel()
 
-        self.chat_display.append(f"<span style='color: #38bdf8; font-weight: bold;'>You:</span> {user_text}")
+        # Add to persistent memory silently
         self.memory.add_message("user", user_text)
 
-        # Refresh tasks if newly detected in memory
-        self.refresh_task_list()
-
-        self.status_label.setText("Curious...")
+        self.status_lbl.setText("● Thinking... (私、気になります！)")
         self.character.set_thinking(True)
         self.character.bubble.set_streaming_text("I'm curious...")
 
-        model = self.model_combo.currentText()
+        models = get_installed_models()
+        model = models[0] if models else "llama3.2:1b"
         messages = self.memory.get_context_messages()
 
         self.active_worker = OllamaChatWorker(model, messages)
@@ -969,7 +532,7 @@ class ChatWindow(QDialog):
         self.active_worker.start()
 
         self._current_reply_accum = []
-        self.chat_display.append("<span style='color: #ec4899; font-weight: bold;'>Chitanda:</span> ")
+        self.chat_display.append("<div style='margin-bottom: 6px;'><b style='color: #ec4899;'>🌸 Chitanda:</b> ")
 
     def _on_token(self, token):
         self._current_reply_accum.append(token)
@@ -977,28 +540,28 @@ class ChatWindow(QDialog):
         cursor.movePosition(cursor.MoveOperation.End)
         cursor.insertText(token)
         self.chat_display.setTextCursor(cursor)
+        self.chat_display.ensureCursorVisible()
         self.character.bubble.set_streaming_text("".join(self._current_reply_accum))
 
     def _on_finished(self, full_text):
-        self.status_label.setText("Listening")
+        self.status_lbl.setText("● Ready • Classical Literature Club")
         self.character.set_thinking(False)
         self.memory.add_message("assistant", full_text)
         self.character.bubble.finalize_stream(duration_ms=7000)
 
-        # Check and execute any [ACTION: ...] tags generated by the AI
+        # Check for [ACTION: ...] tags
         action_matches = re.findall(r'\[ACTION:\s*([^\]]+)\]', full_text, re.IGNORECASE)
         for act in action_matches:
-            action_res = LaptopController.execute_action_tag(act)
-            self.chat_display.append(f"<span style='color: #c084fc; font-weight: bold;'>[Laptop Executed]:</span> {action_res}")
+            res = LaptopController.execute_action_tag(act)
+            self.chat_display.append(f"<div style='color: #c084fc; font-size: 11px;'>[Laptop Executed]: {res}</div>")
 
         if self.voice_btn.isChecked() and full_text:
-            # Clean action tags from speech so she speaks naturally
             clean_speech = re.sub(r'\[ACTION:[^\]]+\]', '', full_text).strip()
             if clean_speech:
                 self.character.voice_worker.speak(clean_speech)
 
     def _on_error(self, err):
-        self.status_label.setText("Error")
+        self.status_lbl.setText("● Offline / Error")
         self.character.set_thinking(False)
-        self.chat_display.append(f"<span style='color: #ef4444;'>[Error]: {err}</span>")
-        self.character.say("I'm sorry, I couldn't reach Ollama. Please make sure Ollama is running!", voice=False)
+        self.chat_display.append(f"<div style='color: #ef4444;'>[Notice]: {err}</div>")
+        self.character.say("I couldn't reach Ollama on your laptop. Please check that Ollama is running!", voice=False)

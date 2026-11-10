@@ -499,9 +499,12 @@ class KingCharacter(QWidget):
     def open_chat(self):
         self.wake_up()
         if self.chat_window:
-            self.chat_window.show()
-            self.chat_window.raise_()
-            self.chat_window.activateWindow()
+            if hasattr(self.chat_window, "show_near_mascot"):
+                self.chat_window.show_near_mascot(self)
+            else:
+                self.chat_window.show()
+                self.chat_window.raise_()
+                self.chat_window.activateWindow()
 
     def dismiss_companion(self):
         self.voice_worker.stop()
