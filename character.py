@@ -3,13 +3,14 @@ import time
 import math
 import random
 from datetime import datetime
-from PySide6.QtCore import Qt, QTimer, QPoint, QRectF
+from PySide6.QtCore import Qt, QTimer, QPoint, QRectF, QUrl, QEvent
 from PySide6.QtGui import (
     QColor, QPainter, QRadialGradient,
     QPen, QBrush, QFont, QPixmap, QImage, QGuiApplication,
-    QIcon
+    QIcon, QCursor
 )
 from PySide6.QtWidgets import QWidget, QMenu, QApplication, QSystemTrayIcon
+from PySide6.QtWebEngineWidgets import QWebEngineView
 
 from bubble import SpeechBubble
 from voice import VoiceSpeakerThread
@@ -125,6 +126,19 @@ class KingCharacter(QWidget):
 
         self.chat_window = None
 
+        # Render Mode: "3D" (Three.js WebGL Model) or "2D" (High-Res Kyoto Animation Sprites)
+        self.render_mode = "3D"
+
+        # Embedded WebGL 3D Mascot View
+        self.web_view = QWebEngineView(self)
+        self.web_view.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
+        self.web_view.page().setBackgroundColor(Qt.GlobalColor.transparent)
+        html_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "mascot_3d.html"))
+        self.web_view.setUrl(QUrl.fromLocalFile(html_path))
+        self.web_view.resize(self.widget_width, self.widget_height)
+        self.web_view.installEventFilter(self)
+        self.web_view.show()
+
         # Setup System Tray Icon
         self.tray_icon = QSystemTrayIcon(self)
         if "uniform" in self.sprites and self.sprites["uniform"][0]:
@@ -173,9 +187,53 @@ class KingCharacter(QWidget):
             self.widget_width, self.widget_height = 130, 220
 
         self.resize(self.widget_width, self.widget_height)
+        if hasattr(self, "web_view"):
+            self.web_view.resize(self.widget_width, self.widget_height)
         self.load_all_sprites()
         self.bubble.update_position()
         self.update()
+
+    def set_render_mode(self, mode: str):
+        self.render_mode = mode
+        if mode == "3D":
+            self.web_view.show()
+            self._sync_3d_state()
+        else:
+            self.web_view.hide()
+        self.update()
+
+    def _sync_3d_state(self):
+        if self.render_mode == "3D" and hasattr(self, "web_view"):
+            state_to_send = self.current_state
+            if self.is_thinking or self.is_active_reaction:
+                state_to_send = "CURIOUS"
+            self.web_view.page().runJavaScript(f"window.setMascotState('{state_to_send}')")
+
+    def eventFilter(self, obj, event):
+        if hasattr(self, "web_view") and obj == self.web_view:
+            if event.type() == QEvent.Type.MouseButtonPress:
+                if event.button() == Qt.MouseButton.LeftButton:
+                    self.drag_position = event.globalPosition().toPoint() - self.frameGeometry().topLeft()
+                    self.trigger_friendly_reaction(2000)
+                    return True
+                elif event.button() == Qt.MouseButton.RightButton:
+                    self.contextMenuEvent(event)
+                    return True
+            elif event.type() == QEvent.Type.MouseMove:
+                if self.drag_position is not None and event.buttons() & Qt.MouseButton.LeftButton:
+                    new_pos = event.globalPosition().toPoint() - self.drag_position
+                    self.move(new_pos)
+                    self.bubble.update_position()
+                    return True
+            elif event.type() == QEvent.Type.MouseButtonRelease:
+                if event.button() == Qt.MouseButton.LeftButton:
+                    self.drag_position = None
+                    return True
+            elif event.type() == QEvent.Type.MouseButtonDblClick:
+                if event.button() == Qt.MouseButton.LeftButton:
+                    self.open_chat()
+                    return True
+        return super().eventFilter(obj, event)
 
     def _setup_tray_menu(self):
         tray_menu = QMenu()
@@ -363,9 +421,20 @@ class KingCharacter(QWidget):
             self.current_state = "STAND"
             self.idle_decision_timer.setInterval(random.randint(3000, 6000))
 
+        self._sync_3d_state()
+
     def _tick(self):
         self.animation_step += 0.06
         self.sleep_zzz_timer += 0.05
+
+        # 3D Head and Eye Tracking toward cursor
+        if self.render_mode == "3D" and hasattr(self, "web_view") and self.isVisible():
+            cursor_pos = QCursor.pos()
+            char_center_x = self.x() + self.widget_width / 2
+            char_center_y = self.y() + self.widget_height / 3
+            dx = (cursor_pos.x() - char_center_x) / 650.0
+            dy = (cursor_pos.y() - char_center_y) / 450.0
+            self.web_view.page().runJavaScript(f"window.setTargetLook({dx:.2f}, {dy:.2f})")
 
         if self.current_state == "WALK" and self.drag_position is None and not self.is_thinking and self.isVisible():
             self.walk_ticks_remaining -= 1
@@ -390,6 +459,7 @@ class KingCharacter(QWidget):
 
             if self.walk_ticks_remaining <= 0:
                 self.current_state = "STAND"
+                self._sync_3d_state()
 
         if self.isVisible():
             self.bubble.update_position()
@@ -397,23 +467,27 @@ class KingCharacter(QWidget):
 
     def _end_reaction(self):
         self.is_active_reaction = False
+        self._sync_3d_state()
         self.update()
 
     def wake_up(self):
         self.last_interaction_time = time.time()
         self.current_state = "STAND"
+        self._sync_3d_state()
         self.update()
 
     def set_thinking(self, thinking: bool):
         self.is_thinking = thinking
         if thinking:
             self.wake_up()
+        self._sync_3d_state()
         self.update()
 
     def trigger_friendly_reaction(self, duration_ms=2500):
         self.wake_up()
         self.is_active_reaction = True
         self.reaction_reset_timer.start(duration_ms)
+        self._sync_3d_state()
         self.update()
 
     def say(self, message: str, voice=True):
@@ -435,6 +509,10 @@ class KingCharacter(QWidget):
         QApplication.quit()
 
     def paintEvent(self, event):
+        # When in 3D WebGL mode, Three.js handles the full rendering inside web_view
+        if self.render_mode == "3D":
+            return
+
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
         painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
@@ -569,6 +647,11 @@ class KingCharacter(QWidget):
         action_curious = menu.addAction("✨ 「私、気になります！」 (I'm Curious!)")
         action_hide = menu.addAction("🙈 Hide Chitanda (Quiet Study)")
 
+        # 3D / 2D Mascot Mode
+        render_menu = menu.addMenu("✨ 3D / 2D Mascot Mode")
+        act_3d = render_menu.addAction("✨ 3D Anime Model (WebGL)" + ("  ✔" if self.render_mode == "3D" else ""))
+        act_2d = render_menu.addAction("🌸 2D Sprite" + ("  ✔" if self.render_mode == "2D" else ""))
+
         # Laptop Quick Tools submenu
         laptop_menu = menu.addMenu("💻 Laptop Controls")
         act_battery = laptop_menu.addAction("🔋 Check Battery Status")
@@ -597,10 +680,14 @@ class KingCharacter(QWidget):
         menu.addSeparator()
         action_exit = menu.addAction("👋 Say Goodbye (Exit)")
 
-        action = menu.exec(event.globalPos())
+        action = menu.exec(QCursor.pos())
 
         if action == action_chat:
             self.open_chat()
+        elif action == act_3d:
+            self.set_render_mode("3D")
+        elif action == act_2d:
+            self.set_render_mode("2D")
         elif action == action_ask:
             self._ask_proactive_question()
         elif action == act_battery:

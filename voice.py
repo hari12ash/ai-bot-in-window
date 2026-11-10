@@ -51,21 +51,39 @@ class _AudioGeneratorThread(QThread):
     async def _generate_audio(self, text: str, output_path: str):
         import edge_tts
 
+        lower = text.lower()
+        is_curious_or_excited = any(w in lower for w in ["curious", "!", "wonder", "solve", "mystery", "kininarimasu", "best", "let's", "amazing", "quiz"])
+        is_soothing_or_care = any(w in lower for w in ["tea", "rest", "break", "relax", "stretch", "gentle", "sleep", "soothing", "water", "care", "tired", "health"])
+
         if self.voice_mode == "ja-chitanda":
             # Sweet, polite Japanese anime voice (Satomi Sato style)
             voice = "ja-JP-NanamiNeural"
-            pitch = "+2Hz"
-            rate = "+2%"
+            if is_curious_or_excited:
+                pitch = "+4Hz"
+                rate = "+4%"
+            elif is_soothing_or_care:
+                pitch = "+2Hz"
+                rate = "-1%"
+            else:
+                pitch = "+3Hz"
+                rate = "+2%"
         elif self.voice_mode == "en-emma":
             # Refined, elegant young lady English
             voice = "en-US-EmmaNeural"
-            pitch = "+1Hz"
-            rate = "+1%"
+            pitch = "+2Hz" if is_curious_or_excited else "+1Hz"
+            rate = "+2%" if is_curious_or_excited else "0%"
         else:
             # en-chitanda: Madeleine Morris style (cheerful, polite, curious, crystal clear)
             voice = "en-US-AvaNeural"
-            pitch = "+2Hz"
-            rate = "+2%"
+            if is_curious_or_excited:
+                pitch = "+4Hz"
+                rate = "+4%"
+            elif is_soothing_or_care:
+                pitch = "+1Hz"
+                rate = "-2%"
+            else:
+                pitch = "+2Hz"
+                rate = "+1%"
 
         communicate = edge_tts.Communicate(text, voice, pitch=pitch, rate=rate)
         await asyncio.wait_for(communicate.save(output_path), timeout=8.0)
