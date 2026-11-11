@@ -25,32 +25,32 @@ WINTER_SPRITE = os.path.join(os.path.dirname(__file__), "chitanda_winter.png")
 OREKI_SPRITE = os.path.join(os.path.dirname(__file__), "oreki_crisp.png")
 
 CHITANDA_QUOTES = [
-    "I'm curious! (私、気になります！) Please tell me what you are working on!",
-    "Let's do our very best today! I know you can accomplish all your goals!",
-    "Don't worry, even difficult problems have an answer if we look closely together!",
-    "Are we studying for your exams today? I'll be right here cheering you on!",
-    "Remember to drink plenty of water and rest your eyes. Your health is so important!"
+    "I'm curious! (私、気になります！) Tell me whatever is on your mind!",
+    "I hope you're having a wonderful and peaceful day!",
+    "I'm always right here by your side whenever you need a hand or want to chat!",
+    "Remember to stay hydrated and take a nice deep breath!",
+    "It's really nice spending time with you on your desktop!"
 ]
 
 CHITANDA_PROACTIVE_QUESTIONS = [
-    "I'm curious! (私、気になります！) What topic are you studying right now? Can I help you brainstorm?",
-    "How is your study session progressing? If you're stuck on a difficult question, let's solve it together!",
-    "I'm curious... would you like me to quiz you on your study topics or test your knowledge?",
-    "Are you preparing for your GATE exam or revising notes right now? You are doing such wonderful work!",
-    "If you have any complex problem or confusing code, copy it and click me—I would love to help deduce the answer!",
-    "I noticed you've been working diligently! How is your concentration? Would you like a warm cup of tea?",
-    "I'm so curious to know—what is the most interesting thing you have discovered today?",
-    "Should we review our daily tasks together to see what we can accomplish next?",
-    "Don't worry if a problem looks intimidating! Every mystery has a solution if we look closely together!",
-    "Are you taking good care of your eyes? Please remember to look away from the screen for a moment and stretch!"
+    "I'm curious! (私、気になります！) How is your day going so far?",
+    "Is there anything interesting happening today? I'd love to hear about it!",
+    "Just checking in to say hi! How are you feeling right now?",
+    "If you need anything or just want to chat, I'm always right here!",
+    "I hope everything is going smoothly with whatever you're doing!",
+    "Would you like to take a quick pause and enjoy a warm drink?",
+    "What's your favorite thing to do when you want to relax?",
+    "I'm curious—have you seen any fun or interesting things lately?",
+    "Remember to take good care of yourself and rest your eyes whenever you need to!",
+    "I'm really glad to be here keeping you company!"
 ]
 
 CHITANDA_AMBIENT_THOUGHTS = [
-    "I'm curious... how is your study session progressing?",
-    "You're working so hard today! Please remember to take a short break if you feel tired.",
-    "The Classic Literature Club is always peaceful, but studying with you is so exciting!",
-    "Would you like some warm tea? Staying refreshed helps keep your mind clear!",
-    "Don't forget to check your daily task list! We can finish them one step at a time!"
+    "I hope you're having a lovely day!",
+    "Take a breath and relax your shoulders for a moment~",
+    "It's so peaceful hanging out together on your desktop.",
+    "Remember to stay hydrated with some water or warm tea!",
+    "I'm right here whenever you want to talk!"
 ]
 
 class KingCharacter(QWidget):
@@ -132,10 +132,10 @@ class KingCharacter(QWidget):
         self.idle_decision_timer.timeout.connect(self._decide_next_idle_action)
         self.idle_decision_timer.start(3500)
 
-        # Proactive Curious Questions & Assistance Timer (every 2.5 to 4.5 minutes)
+        # Proactive Friendly Check-in Timer (occasional, non-intrusive, silent bubble)
         self.question_timer = QTimer(self)
         self.question_timer.timeout.connect(self._ask_proactive_question)
-        self.question_timer.start(120 * 1000)  # First question after 2 minutes
+        self.question_timer.start(600 * 1000)  # Gentle check-in after 10 minutes
 
         # Reaction reset timer
         self.reaction_reset_timer = QTimer(self)
@@ -166,7 +166,7 @@ class KingCharacter(QWidget):
         self.tray_icon = QSystemTrayIcon(self)
         if "uniform" in self.sprites and self.sprites["uniform"][0]:
             self.tray_icon.setIcon(QIcon(self.sprites["uniform"][0]))
-        self.tray_icon.setToolTip("Eru Chitanda - Study Companion")
+        self.tray_icon.setToolTip("Eru Chitanda - Desktop AI Companion")
         self._setup_tray_menu()
         self.tray_icon.show()
 
@@ -385,13 +385,13 @@ class KingCharacter(QWidget):
     def get_time_appropriate_greeting(self):
         hour = datetime.now().hour
         if 5 <= hour < 12:
-            return "Good morning! It's a brand new day! I'm so curious to see what we will learn together today!"
+            return "Good morning! I hope you have a wonderful and pleasant day!"
         elif 12 <= hour < 17:
-            return "Good afternoon! How is your day going? Let me know if you'd like to study or check on your tasks!"
+            return "Good afternoon! How is your day going? I'm here if you'd like to chat!"
         elif 17 <= hour < 23:
-            return "Good evening! You've done wonderful work today! Shall we wrap up our remaining goals?"
+            return "Good evening! It was lovely spending time today. How are you feeling?"
         else:
-            return "It's getting very late! Please make sure not to push yourself too hard. Resting well is so important!"
+            return "It's getting late! Please make sure to get plenty of rest tonight!"
 
     def _pop_ambient_thought(self):
         if not self.ambient_enabled or self.is_thinking or not self.isVisible():
@@ -402,24 +402,26 @@ class KingCharacter(QWidget):
             self.bubble.show_message(thought, duration_ms=6500)
 
     def _ask_proactive_question(self):
+        # Do not talk unprompted or speak out loud aimlessly
         if not self.ambient_enabled or self.is_thinking or not self.isVisible():
             return
-        # If quiet study mode is active, don't interrupt with ambient voice
+        # If quiet study mode is active, don't interrupt
         if self.study_manager.is_running and self.study_manager.phase == "study":
             return
         # If chat window is open, let the user chat uninterrupted
         if self.chat_window and self.chat_window.isVisible():
             return
 
+        # Do NOT speak out loud unsolicited (voice=False). Only show a brief, gentle silent bubble.
         self.wake_up()
         self.current_state = "CURIOUS"
         self.walk_ticks_remaining = 0
         question = random.choice(CHITANDA_PROACTIVE_QUESTIONS)
-        self.say(question, voice=True)
-        self.trigger_friendly_reaction(4500)
+        self.say(question, voice=False)
+        self.trigger_friendly_reaction(4000)
 
-        # Re-arm question timer with random delay between 2.5 and 4.5 minutes
-        next_delay = random.randint(150, 270) * 1000
+        # Re-arm question timer with very relaxed delay (10 to 18 minutes)
+        next_delay = random.randint(600, 1080) * 1000
         self.question_timer.setInterval(next_delay)
 
     def _decide_next_idle_action(self):

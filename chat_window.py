@@ -502,7 +502,7 @@ class ChatWindow(QWidget):
         # 6. SHOW / UNHIDE
         if any(s in lower for s in ["show yourself", "unhide", "where are you", "come back", "show now"]):
             self.character.show_character()
-            reply = "I'm right here! How is your study coming along? I'm so curious!"
+            reply = "I'm right here! It's so nice to see you! How are you doing?"
             self.chat_display.append(f"<div style='margin-bottom: 6px;'><b style='color: #ec4899;'>🌸 Chitanda:</b> {reply}</div>")
             self.character.say(reply, voice=self.voice_btn.isChecked())
             return
