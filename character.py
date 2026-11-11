@@ -147,6 +147,7 @@ class KingCharacter(QWidget):
 
         # Render Mode: "3D" (Full Articulated 3D Model from Chitanda_Eru)
         self.render_mode = "3D"
+        self.is_3d_ready = False
 
         # Embedded WebGL 3D Mascot View
         self.web_view = QWebEngineView(self)
@@ -156,7 +157,7 @@ class KingCharacter(QWidget):
         self.web_view.setUrl(QUrl.fromLocalFile(html_path))
         self.web_view.resize(self.widget_width, self.widget_height)
         self.web_view.installEventFilter(self)
-        self.web_view.loadFinished.connect(lambda ok: self._sync_3d_state())
+        self.web_view.loadFinished.connect(self._on_3d_loaded)
         self.web_view.show()
 
         # Setup System Tray Icon
@@ -222,14 +223,21 @@ class KingCharacter(QWidget):
             self.web_view.hide()
         self.update()
 
+    def _on_3d_loaded(self, ok):
+        self.is_3d_ready = bool(ok)
+        if ok:
+            self._sync_3d_state()
+
     def _sync_3d_state(self):
-        if self.render_mode == "3D" and hasattr(self, "web_view"):
+        if self.render_mode == "3D" and hasattr(self, "web_view") and getattr(self, "is_3d_ready", False):
             state_to_send = self.current_state
             if self.is_thinking:
                 state_to_send = "CURIOUS"
             elif self.is_active_reaction:
                 state_to_send = "REACTION"
-            self.web_view.page().runJavaScript(f"window.setMascotState('{state_to_send}')")
+            self.web_view.page().runJavaScript(
+                f"if (typeof window.setMascotState === 'function') window.setMascotState('{state_to_send}');"
+            )
 
     def eventFilter(self, obj, event):
         if hasattr(self, "web_view") and obj == self.web_view:
@@ -508,8 +516,10 @@ class KingCharacter(QWidget):
         self.head_tilt += (target_dx * 2.5 - self.head_tilt) * 0.10
 
         # 3D Head and Eye Tracking toward cursor (if in 3D mode)
-        if self.render_mode == "3D" and hasattr(self, "web_view") and self.isVisible():
-            self.web_view.page().runJavaScript(f"window.setTargetLook({target_dx:.2f}, {target_dy:.2f})")
+        if self.render_mode == "3D" and hasattr(self, "web_view") and getattr(self, "is_3d_ready", False) and self.isVisible():
+            self.web_view.page().runJavaScript(
+                f"if (typeof window.setTargetLook === 'function') window.setTargetLook({target_dx:.2f}, {target_dy:.2f});"
+            )
 
         # Particle System (Sakura petals & star sparkles)
         is_energetic = (self.is_thinking or self.is_active_reaction or self.current_state == "CURIOUS")

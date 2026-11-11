@@ -21,6 +21,25 @@
     left: 0;
   }
 </style>
+<script>
+// Define safe global bridge hooks immediately so Python calls never throw TypeError
+window._pendingState = 'STAND';
+window._pendingLook = { dx: 0, dy: 0 };
+
+window.setMascotState = function(state) {
+    window._pendingState = state;
+    if (window._applyMascotState) {
+        window._applyMascotState(state);
+    }
+};
+
+window.setTargetLook = function(dx, dy) {
+    window._pendingLook = { dx, dy };
+    if (window._applyTargetLook) {
+        window._applyTargetLook(dx, dy);
+    }
+};
+</script>
 <script src="three.min.js"></script>
 </head>
 <body>
@@ -30,17 +49,17 @@
 // CHITANDA ERU 3D ARTICULATED ANIME ENGINE (from Chitanda_Eru)
 // =====================================================================
 const container = document.getElementById('canvas-container');
-const width = window.innerWidth;
-const height = window.innerHeight;
+const width = window.innerWidth || 145;
+const height = window.innerHeight || 240;
 
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(36, width / height, 0.1, 100);
-// Center camera perfectly on Chitanda's upper body / full torso
+// Center camera perfectly on Chitanda's full body
 camera.position.set(0, 0.95, 3.1);
 
 const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
 renderer.setSize(width, height);
-renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 container.appendChild(renderer.domElement);
@@ -70,8 +89,18 @@ const navyMat = new THREE.MeshToonMaterial({ color: 0x161c2d });
 const ribbonMat = new THREE.MeshToonMaterial({ color: 0x00acc1 });
 const blackSockMat = new THREE.MeshToonMaterial({ color: 0x1a1a20 });
 const brownLoaferMat = new THREE.MeshStandardMaterial({ color: 0x4a2c1d, roughness: 0.4 });
+const blushMat = new THREE.MeshBasicMaterial({ color: 0xf472b6, transparent: true, opacity: 0.45 });
+const mouthMat = new THREE.MeshBasicMaterial({ color: 0xdb2777 });
 
 const joints = {};
+
+// Subtle ground shadow
+const shadowGeo = new THREE.PlaneGeometry(0.7, 0.22);
+const shadowMat = new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.25 });
+const shadowMesh = new THREE.Mesh(shadowGeo, shadowMat);
+shadowMesh.rotation.x = -Math.PI / 2;
+shadowMesh.position.set(0, 0.01, 0);
+characterRoot.add(shadowMesh);
 
 // --- 1. HIPS & SPINE ---
 const hips = new THREE.Group();
@@ -134,6 +163,18 @@ glint.position.set(-0.065, 0.05, 0.21);
 const glint2 = glint.clone();
 glint2.position.set(0.085, 0.05, 0.21);
 head.add(eyeL, eyeR, glint, glint2);
+
+// Cute anime blush ovals on cheeks
+const blushL = new THREE.Mesh(new THREE.PlaneGeometry(0.045, 0.025), blushMat);
+blushL.position.set(-0.11, -0.03, 0.205);
+const blushR = blushL.clone();
+blushR.position.set(0.11, -0.03, 0.205);
+head.add(blushL, blushR);
+
+// Gentle mouth smile
+const mouth = new THREE.Mesh(new THREE.PlaneGeometry(0.035, 0.015), mouthMat);
+mouth.position.set(0, -0.08, 0.21);
+head.add(mouth);
 
 // Hair Group
 const hairBase = new THREE.Group();
@@ -232,7 +273,7 @@ joints.leftLeg = buildLeg(true);
 joints.rightLeg = buildLeg(false);
 
 // --- 5. SAKURA BLOSSOMS PARTICLE SYSTEM ---
-const petalCount = 20;
+const petalCount = 18;
 const petalGeo = new THREE.BufferGeometry();
 const petalPositions = new Float32Array(petalCount * 3);
 const petalVelocities = [];
@@ -271,20 +312,24 @@ const petalParticles = new THREE.Points(petalGeo, petalMat);
 scene.add(petalParticles);
 
 // --- STATE & INTERACTIVE CONTROL ---
-let currentState = "STAND";
+let currentState = window._pendingState || "STAND";
 let lookTarget = { x: 0, y: 0 };
 let currentLook = { x: 0, y: 0 };
 let clock = new THREE.Clock();
 let walkCycle = 0;
 
-window.setMascotState = function(state) {
+window._applyMascotState = function(state) {
     currentState = state;
 };
 
-window.setTargetLook = function(dx, dy) {
+window._applyTargetLook = function(dx, dy) {
     lookTarget.x = Math.max(-1, Math.min(1, dx));
     lookTarget.y = Math.max(-1, Math.min(1, dy));
 };
+
+if (window._pendingLook) {
+    window._applyTargetLook(window._pendingLook.dx, window._pendingLook.dy);
+}
 
 window.addEventListener('resize', () => {
     const w = window.innerWidth;
