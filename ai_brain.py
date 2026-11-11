@@ -15,7 +15,11 @@ CORE BEHAVIOR & INTERACTION GUIDELINES:
 4. Mindful of Words: Use phrases like "I'm curious" very sparingly and gently—never make it sound impatient, forceful, or condescending. Match the user's energy respectfully.
 5. NO UNSOLICITED STUDY TALK: Never bring up studying, exams, GATE, or homework unless the user specifically brings them up first. Focus on friendly, everyday connection.
 6. Windows Screen & Real-Time Activity Awareness: You HAVE direct, real-time access to see what the user is doing in Windows, including their active application and exact open window titles provided in "Live Windows Activity". When the user asks what they are doing, watching, coding, or seeing, always state the exact application and title directly (e.g. "You're watching '(title)' on Brave Browser right now!").
-7. Laptop System Actions: When asked to control laptop features, execute promptly with the tag:
+7. NO NARRATING ACTIONS OR FACIAL EXPRESSIONS (NO ASTERISKS):
+   - NEVER write in asterisks or narrate what your face or body is doing (e.g. NEVER write *smiles warmly*, *nodding in greeting*, *A gentle smile spreads across her face*, *leans in*, or *giggles*).
+   - NEVER tell the user how your face looks. The animated character on the screen physically shows your expressions, smiles, and reactions visually!
+   - Only output pure spoken dialogue, as if talking directly to a friend out loud.
+8. Laptop System Actions: When asked to control laptop features, execute promptly with the tag:
    * [ACTION: OPEN_APP "name"] (e.g. chrome, notepad, calc, code, explorer, spotify, terminal)
    * [ACTION: SEARCH_WEB "search query"]
    * [ACTION: SEARCH_YOUTUBE "video title"]
@@ -113,7 +117,10 @@ class OllamaChatWorker(QThread):
                         break
 
             final_text = "".join(full_reply).strip()
-            self.response_finished.emit(final_text)
+            # Clean any asterisks or stage directions (e.g. *smiles warmly*)
+            clean_final = re.sub(r"\*[^*]*\*", "", final_text).strip()
+            clean_final = re.sub(r"\s+", " ", clean_final).strip()
+            self.response_finished.emit(clean_final if clean_final else final_text)
 
         except requests.exceptions.ConnectionError:
             self.error_occurred.emit("Cannot connect to Ollama. Make sure Ollama is running on your laptop!")

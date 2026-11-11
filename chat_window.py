@@ -689,33 +689,41 @@ class ChatWindow(QWidget):
         self.active_worker.start()
 
         self._current_reply_accum = []
-        self.chat_display.append("<div style='margin-bottom: 6px;'><b style='color: #ec4899;'>🌸 Chitanda:</b> ")
 
     def _on_token(self, token):
         self._current_reply_accum.append(token)
-        cursor = self.chat_display.textCursor()
-        cursor.movePosition(cursor.MoveOperation.End)
-        cursor.insertText(token)
-        self.chat_display.setTextCursor(cursor)
-        self.chat_display.ensureCursorVisible()
-        self.character.bubble.set_streaming_text("".join(self._current_reply_accum))
+        accum_text = "".join(self._current_reply_accum)
+        clean_preview = re.sub(r'\*[^*]*\*', '', accum_text)
+        clean_preview = re.sub(r'\[ACTION:[^\]]*\]?', '', clean_preview).strip()
+        self.character.bubble.set_streaming_text(clean_preview if clean_preview else "...")
 
     def _on_finished(self, full_text):
-        self.status_lbl.setText("● Ready • Classical Literature Club")
+        self.status_lbl.setText("● Ready")
         self.character.set_thinking(False)
-        self.memory.add_message("assistant", full_text)
-        self.character.bubble.finalize_stream(duration_ms=7000)
+
+        # Remove any roleplay asterisks or stage directions (e.g. *smiles warmly*)
+        clean_dialogue = re.sub(r'\*[^*]*\*', '', full_text).strip()
+        clean_dialogue = re.sub(r'\[ACTION:[^\]]+\]', '', clean_dialogue).strip()
+        clean_dialogue = re.sub(r'\s+', ' ', clean_dialogue).strip()
+
+        # Display the pure dialogue cleanly in the chat window
+        self.chat_display.append(f"<div style='margin-bottom: 5px;'><b style='color: #ec4899;'>🌸 Chitanda:</b> {clean_dialogue}</div>")
+        self.chat_display.ensureCursorVisible()
+
+        self.memory.add_message("assistant", clean_dialogue if clean_dialogue else full_text)
+        self.character.bubble.show_message(clean_dialogue if clean_dialogue else "Hello!", duration_ms=6500)
+
+        # Physically show the warm smile, happy eyes, and blush on the character sprite!
+        self.character.trigger_friendly_reaction(4500)
 
         # Check for [ACTION: ...] tags
         action_matches = re.findall(r'\[ACTION:\s*([^\]]+)\]', full_text, re.IGNORECASE)
         for act in action_matches:
             res = LaptopController.execute_action_tag(act)
-            self.chat_display.append(f"<div style='color: #c084fc; font-size: 11px;'>[Laptop Executed]: {res}</div>")
+            self.chat_display.append(f"<div style='color: #c084fc; font-size: 10px;'>[Laptop Executed]: {res}</div>")
 
-        if self.voice_btn.isChecked() and full_text:
-            clean_speech = re.sub(r'\[ACTION:[^\]]+\]', '', full_text).strip()
-            if clean_speech:
-                self.character.voice_worker.speak(clean_speech)
+        if self.voice_btn.isChecked() and clean_dialogue:
+            self.character.voice_worker.speak(clean_dialogue)
 
     def _on_error(self, err):
         self.status_lbl.setText("● Offline / Error")

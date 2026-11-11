@@ -707,8 +707,20 @@ class KingCharacter(QWidget):
                 eye_center_x = draw_x + pix.width() * norm_eye_x + self.look_offset_x
                 eye_center_y = draw_y + pix.height() * 0.175 + self.look_offset_y
 
-                # Eye Blinking & Sleep Eyes
-                if self.blink_phase > 0.05 or self.current_state == "SLEEP":
+                # Eye Blinking, Smiling & Sleep Eyes
+                if self.is_active_reaction:
+                    # Happy smiling crescent eyes (^ ^) and cute blush
+                    painter.setPen(QPen(QColor(38, 30, 26), 2.0, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap))
+                    painter.drawArc(int(eye_center_x - 9), int(eye_center_y - 3), 8, 5, 25 * 16, 130 * 16)
+                    painter.drawArc(int(eye_center_x + 1), int(eye_center_y - 3), 8, 5, 25 * 16, 130 * 16)
+
+                    # Soft anime cheek blush
+                    cheek_y = draw_y + pix.height() * 0.22 + self.look_offset_y
+                    painter.setBrush(QColor(244, 114, 182, 120))
+                    painter.setPen(Qt.PenStyle.NoPen)
+                    painter.drawEllipse(int(eye_center_x - 13), int(cheek_y), 7, 4)
+                    painter.drawEllipse(int(eye_center_x + 6), int(cheek_y), 7, 4)
+                elif self.blink_phase > 0.05 or self.current_state == "SLEEP":
                     eyelid_h = max(2, int(8 * (1.0 if self.current_state == "SLEEP" else self.blink_phase)))
                     painter.setPen(QPen(QColor(38, 30, 26), 2.0, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap))
                     # Left lash arc
@@ -717,7 +729,7 @@ class KingCharacter(QWidget):
                     painter.drawArc(int(eye_center_x + 1), int(eye_center_y - 2), 8, eyelid_h, 25 * 16, 130 * 16)
 
                 # Curiosity Eye Sparkles
-                if (self.current_state == "CURIOUS" or self.is_thinking) and not self.is_blinking:
+                if (self.current_state == "CURIOUS" or self.is_thinking) and not self.is_blinking and not self.is_active_reaction:
                     sp_rot = self.animation_step * 1.8
                     for ox in [-5, 5]:
                         painter.save()
@@ -731,14 +743,18 @@ class KingCharacter(QWidget):
                         painter.restore()
 
                 # Lip-Sync Talking Mouth Animation (syncs with speech audio)
+                mouth_center_x = draw_x + pix.width() * norm_eye_x + self.look_offset_x * 0.5
+                mouth_center_y = draw_y + pix.height() * 0.285 + self.look_offset_y * 0.5
                 if self.voice_worker.is_speaking:
-                    mouth_center_x = draw_x + pix.width() * norm_eye_x + self.look_offset_x * 0.5
-                    mouth_center_y = draw_y + pix.height() * 0.285 + self.look_offset_y * 0.5
                     mouth_open = abs(math.sin(self.talk_step * 14.0)) * 3.5
                     if mouth_open > 0.8:
                         painter.setPen(QPen(QColor(219, 39, 119), 1.2))
                         painter.setBrush(QColor(244, 114, 182, 230))
                         painter.drawEllipse(QRectF(mouth_center_x - 2.5, mouth_center_y - mouth_open / 2, 5.0, mouth_open))
+                elif self.is_active_reaction:
+                    # Gentle smiling curve when reacting/smiling
+                    painter.setPen(QPen(QColor(219, 39, 119), 1.4, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap))
+                    painter.drawArc(int(mouth_center_x - 3.5), int(mouth_center_y - 2), 7, 4, 200 * 16, 140 * 16)
 
                 painter.restore()
 
