@@ -10,33 +10,37 @@ Powered locally and privately by **Ollama** and **PySide6 (Qt6)**.
 
 ## ✨ Key Features
 
-- **🌸 Interactive Desktop Mascot**:
-  - Frameless, translucent floating desktop character that wanders, breathes, naps (Zzz), and reacts to your interactions.
-  - **4 Outfits / Character Modes**:
-    - School Sailor Uniform (Classic Literature Club)
-    - Inquisitive School Uniform (with knit vest & hands clasped)
-    - Sage Green Knit Vest & Blouse
-    - Warm Winter Duffle Coat & Scarf
-    - Houtarou Oreki (Energy-Saving Protagonist) switchable via context menu
-  - Blooming curiosity aura (`#ec4899`, `#a855f7`) when thinking or curious.
+- **🌸 Interactive Desktop Mascot (Floating Interface)**:
+  - Frameless, translucent floating desktop character that strolls, breathes, naps (Zzz), and blinks naturally every 3-5 seconds.
+  - **Speech Lip-Sync Animation**: Mouth animates in sync with spoken syllables when she speaks.
+  - **Interactive Cursor Look-At**: Her eyes and head softly track your mouse cursor across the screen.
+  - **4 Outfits / Character Modes**: School Uniform, Inquisitive Knit Vest, Casual Blouse, Winter Coat & Scarf, and Houtarou Oreki.
+  - Double-tap or double-click to immediately open the compact, comfortable chat box!
 
-- **🧠 Persistent Memory System (`chitanda_memory.json`)**:
-  - Remembers your long-term goals (e.g. GATE Exam preparation, coding goals), daily tasks, and study preferences across sessions.
-  - Automatically detects tasks from natural conversation and syncs them to your task tracker.
+- **🎙️ Voice Commands (Microphone Speech-to-Text)**:
+  - Push-to-talk microphone button (`🎙️`) in the chat box or right-click menu.
+  - Speak your command naturally, and Chitanda transcribes, processes, and responds with full voice!
 
-- **🎙️ Authentic Voice Engine**:
-  - **English Dub (Default)**: Sweet, energetic, polite voice matching Madeleine Morris (`en-US-AvaNeural`).
-  - **Elegant English**: Refined, gentle young lady tone (`en-US-EmmaNeural`).
-  - **Anime Japanese**: Sweet and polite Japanese matching Satomi Sato (`ja-JP-NanamiNeural`).
-  - Automatic local offline fallback via `pyttsx3`.
+- **🔍 Screen Understanding & Vision Analysis**:
+  - Ask *"What am I looking at?"*, *"Explain this error"*, or *"Summarize what's on my screen"*.
+  - Chitanda captures the active screen in-memory, detects active application & window context, and provides intelligent explanations!
 
-- **⏱️ Study Focus & Auto-Hide Mode**:
-  - Natural commands like *"I'm studying now, remind me in 30 minutes to take a break of 2 to 3 minutes"*.
-  - Chitanda automatically hides from the desktop so you stay 100% focused with zero distractions, and pops back up the second break time starts with warm tea reminders!
+- **📄 PDF Reading & Summarization**:
+  - Automatically scans recent documents or accepts PDF names.
+  - Extracts text via `pypdf` and provides sweet, insightful, well-structured summaries.
 
-- **🖼️ Scene Gallery & 1-Click Desktop Wallpaper**:
-  - High-resolution scenes from Kyoto Animation.
-  - Preview any scene and set it as your Windows desktop wallpaper with a single click.
+- **⏰ Persistent Reminders & Timers**:
+  - Natural commands like *"Remind me in 20 minutes to stretch"* or *"Remind me at 18:30 to call home"*.
+  - Survives computer reboots in `chitanda_reminders.json` with voice notifications and Windows alerts.
+
+- **💻 PC Automation & Windows Control**:
+  - Open applications (Chrome, VS Code, Notepad, Spotify, Calc, Downloads).
+  - Audio control (Volume Up, Down, Mute toggle).
+  - Security & Screen (Lock Laptop, Show Desktop, Take Screenshot, Battery & System Health report).
+
+- **🧠 Persistent Memory & Local AI**:
+  - Runs 100% locally and privately via **Ollama**.
+  - Silently retains long-term goals (such as GATE exam preparation), tasks, and study habits without screen clutter.
 
 ---
 

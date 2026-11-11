@@ -16,6 +16,7 @@ from bubble import SpeechBubble
 from voice import VoiceSpeakerThread
 from work_tools import StudySessionManager
 from laptop_control import LaptopController
+from smart_tools import ReminderManager
 
 UNIFORM_SPRITE = os.path.join(os.path.dirname(__file__), "chitanda_uniform.png")
 CURIOUS_SPRITE = os.path.join(os.path.dirname(__file__), "chitanda_curious.png")
@@ -85,6 +86,9 @@ class KingCharacter(QWidget):
         self.study_manager.tick.connect(self._on_study_tick)
         self.study_manager.study_completed.connect(self._on_study_completed)
         self.study_manager.break_completed.connect(self._on_break_completed)
+
+        # Persistent Reminders Manager (Survives Restarts)
+        self.reminder_manager = ReminderManager(character=self)
 
         # Interactive & Animation States
         self.animation_step = 0.0
@@ -488,6 +492,10 @@ class KingCharacter(QWidget):
             self.is_blinking = True
             self.blink_phase = 1.0
 
+        # Check due reminders periodically (~every 3 seconds)
+        if int(self.animation_step * 10) % 30 == 0:
+            self.reminder_manager.check_due()
+
         # Interactive Mouse Cursor tracking (Gaze & Head Tilt)
         cursor_pos = QCursor.pos()
         center_x = self.x() + self.widget_width / 2
@@ -856,6 +864,13 @@ class KingCharacter(QWidget):
         action_curious = menu.addAction("✨ 「私、気になります！」 (I'm Curious!)")
         action_hide = menu.addAction("🙈 Hide Chitanda (Quiet Study)")
 
+        # Smart Jarvis Tools
+        smart_menu = menu.addMenu("🧠 Smart Jarvis Tools")
+        action_mic = smart_menu.addAction("🎙️ Voice Command (Microphone)")
+        action_vision = smart_menu.addAction("🔍 What am I looking at? (Screen Vision)")
+        action_pdf = smart_menu.addAction("📄 Read & Summarize Latest PDF")
+        action_remind = smart_menu.addAction("⏰ Set a Timed Reminder...")
+
         # 3D / 2D Mascot Mode
         render_menu = menu.addMenu("✨ 3D / 2D Mascot Mode")
         act_3d = render_menu.addAction("✨ 3D Anime Model (WebGL)" + ("  ✔" if self.render_mode == "3D" else ""))
@@ -893,6 +908,22 @@ class KingCharacter(QWidget):
 
         if action == action_chat:
             self.open_chat()
+        elif action == action_mic:
+            self.open_chat()
+            if self.chat_window:
+                self.chat_window._chip_mic()
+        elif action == action_vision:
+            self.open_chat()
+            if self.chat_window:
+                self.chat_window._chip_vision()
+        elif action == action_pdf:
+            self.open_chat()
+            if self.chat_window:
+                self.chat_window._chip_pdf()
+        elif action == action_remind:
+            self.open_chat()
+            if self.chat_window:
+                self.chat_window._chip_reminder()
         elif action == act_3d:
             self.set_render_mode("3D")
         elif action == act_2d:

@@ -5,19 +5,21 @@ from PySide6.QtCore import Qt, Signal, QTimer, QPoint
 from PySide6.QtGui import QFont, QGuiApplication, QColor, QPainter, QBrush, QPen
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel,
-    QLineEdit, QPushButton, QTextEdit, QFrame, QScrollArea
+    QLineEdit, QPushButton, QTextEdit, QFrame, QScrollArea, QFileDialog
 )
 
 from ai_brain import get_installed_models, OllamaChatWorker, ChitandaMemoryManager
 from laptop_control import LaptopController
+from smart_tools import ScreenInspector, PdfDocumentReader, VoiceInputThread
 
 class ChatWindow(QWidget):
     """
-    Compact, comfortable, and sleek desktop chat box for Eru Chitanda.
-    - Double-clicking the mascot opens this clean, small window directly.
-    - Retains conversation context and memory silently in the background.
-    - No distracting history list displayed.
-    - Full laptop control and study timer support.
+    Compact, comfortable, and intelligent desktop chat box for Eru Chitanda.
+    - Voice commands with push-to-talk microphone recording.
+    - Screen understanding / vision analysis of active windows.
+    - PDF document extraction & summarization via pypdf.
+    - Persistent reminders & timers that survive restarts.
+    - Complete Windows automation & local AI via Ollama.
     """
     message_sent_to_king = Signal(str)
 
@@ -26,6 +28,7 @@ class ChatWindow(QWidget):
         self.character = character
         self.memory = ChitandaMemoryManager()
         self.active_worker = None
+        self.voice_rec_thread = None
         self._current_reply_accum = []
         self._drag_pos = None
 
@@ -36,8 +39,8 @@ class ChatWindow(QWidget):
         )
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
 
-        self.resize(360, 470)
-        self.setMinimumSize(320, 380)
+        self.resize(360, 480)
+        self.setMinimumSize(320, 390)
 
         self._setup_ui()
 
@@ -80,9 +83,9 @@ class ChatWindow(QWidget):
 
         header.addStretch()
 
-        # Voice Toggle Button
+        # Voice Toggle Button (Speaker Output)
         self.voice_btn = QPushButton("🔊")
-        self.voice_btn.setToolTip("Toggle Voice Output")
+        self.voice_btn.setToolTip("Toggle Voice Speech Output")
         self.voice_btn.setCheckable(True)
         self.voice_btn.setChecked(True)
         self.voice_btn.setFixedSize(28, 28)
@@ -103,7 +106,7 @@ class ChatWindow(QWidget):
 
         # Close / Minimize button
         close_btn = QPushButton("✕")
-        close_btn.setToolTip("Close Chat")
+        close_btn.setToolTip("Hide Chat")
         close_btn.setFixedSize(28, 28)
         close_btn.setStyleSheet("""
             QPushButton {
@@ -163,15 +166,15 @@ class ChatWindow(QWidget):
 
         # --- QUICK ACTION CHIPS ---
         chips_layout = QHBoxLayout()
-        chips_layout.setSpacing(5)
+        chips_layout.setSpacing(4)
 
         chip_style = """
             QPushButton {
                 background-color: #1f1438;
                 color: #e9d5ff;
                 border: 1px solid #3d2363;
-                border-radius: 11px;
-                padding: 4px 8px;
+                border-radius: 10px;
+                padding: 3px 7px;
                 font-size: 11px;
                 font-weight: 500;
             }
@@ -183,11 +186,12 @@ class ChatWindow(QWidget):
         """
 
         chips = [
-            ("⏱️ 30m Study", self._chip_study),
+            ("🎙️ Voice", self._chip_mic),
+            ("🔍 Vision", self._chip_vision),
+            ("📄 PDF", self._chip_pdf),
+            ("⏰ Remind", self._chip_reminder),
+            ("⏱️ Study", self._chip_study),
             ("🔋 Battery", self._chip_battery),
-            ("❓ Quiz Me", self._chip_quiz),
-            ("🍵 Break", self._chip_break),
-            ("📸 Screen", self._chip_screenshot),
         ]
 
         for label, callback in chips:
@@ -198,12 +202,32 @@ class ChatWindow(QWidget):
 
         container_layout.addLayout(chips_layout)
 
-        # --- INPUT ROW ---
+        # --- INPUT ROW WITH MICROPHONE ---
         input_row = QHBoxLayout()
         input_row.setSpacing(6)
 
+        # Voice Input Push-to-Talk Button
+        self.mic_btn = QPushButton("🎙️")
+        self.mic_btn.setToolTip("Click to speak your command (Voice Input)")
+        self.mic_btn.setFixedSize(36, 34)
+        self.mic_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #24163b;
+                color: #ec4899;
+                border: 1px solid #4a2d6b;
+                border-radius: 10px;
+                font-size: 15px;
+            }
+            QPushButton:hover {
+                background-color: #ec4899;
+                color: white;
+            }
+        """)
+        self.mic_btn.clicked.connect(self._toggle_mic_recording)
+        input_row.addWidget(self.mic_btn)
+
         self.chat_input = QLineEdit()
-        self.chat_input.setPlaceholderText("Message Chitanda (or give laptop command)...")
+        self.chat_input.setPlaceholderText("Message, ask screen, or give voice/command...")
         self.chat_input.setStyleSheet("""
             QLineEdit {
                 background-color: #170f2d;
@@ -218,6 +242,7 @@ class ChatWindow(QWidget):
             }
         """)
         self.chat_input.returnPressed.connect(self.send_chat_message)
+        input_row.addWidget(self.chat_input)
 
         send_btn = QPushButton("Send")
         send_btn.setFixedHeight(34)
@@ -239,11 +264,9 @@ class ChatWindow(QWidget):
             }
         """)
         send_btn.clicked.connect(self.send_chat_message)
-
-        input_row.addWidget(self.chat_input)
         input_row.addWidget(send_btn)
-        container_layout.addLayout(input_row)
 
+        container_layout.addLayout(input_row)
         root_layout.addWidget(self.container)
 
     # -------------------------------------------------------------
@@ -251,7 +274,6 @@ class ChatWindow(QWidget):
     # -------------------------------------------------------------
     def mousePressEvent(self, event):
         if event.button() == Qt.MouseButton.LeftButton:
-            # Allow dragging window from any point near top 50 pixels
             if event.position().y() < 55:
                 self._drag_pos = event.globalPosition().toPoint() - self.frameGeometry().topLeft()
                 event.accept()
@@ -289,27 +311,113 @@ class ChatWindow(QWidget):
             self.character.voice_worker.stop_current()
 
     # -------------------------------------------------------------
+    # VOICE INPUT (MICROPHONE RECORDING)
+    # -------------------------------------------------------------
+    def _toggle_mic_recording(self):
+        if self.voice_rec_thread and self.voice_rec_thread.isRunning():
+            return
+
+        self.mic_btn.setText("🔴")
+        self.mic_btn.setStyleSheet("background-color: #e11d48; color: white; border-radius: 10px;")
+        self.status_lbl.setText("🎙️ Listening to you now...")
+        self.character.set_thinking(True)
+        self.character.bubble.show_message("Listening to your voice...", duration_ms=4000)
+
+        self.voice_rec_thread = VoiceInputThread(record_seconds=4)
+        self.voice_rec_thread.transcription_ready.connect(self._on_voice_transcribed)
+        self.voice_rec_thread.error_occurred.connect(self._on_voice_error)
+        self.voice_rec_thread.start()
+
+    def _on_voice_transcribed(self, text):
+        self.mic_btn.setText("🎙️")
+        self.mic_btn.setStyleSheet("background-color: #24163b; color: #ec4899; border-radius: 10px;")
+        self.status_lbl.setText("● Ready • Classical Literature Club")
+        self.character.set_thinking(False)
+
+        # Place recognized text and process immediately
+        self.chat_input.setText(text)
+        self.send_chat_message()
+
+    def _on_voice_error(self, err_msg):
+        self.mic_btn.setText("🎙️")
+        self.mic_btn.setStyleSheet("background-color: #24163b; color: #ec4899; border-radius: 10px;")
+        self.status_lbl.setText("● Ready • Classical Literature Club")
+        self.character.set_thinking(False)
+        self.chat_display.append(f"<div style='color: #ef4444; font-size: 11px;'>[Mic Notice]: {err_msg}</div>")
+
+    # -------------------------------------------------------------
     # QUICK CHIP ACTIONS
     # -------------------------------------------------------------
+    def _chip_mic(self):
+        self._toggle_mic_recording()
+
+    def _chip_vision(self):
+        self.trigger_screen_analysis("What am I looking at right now? Please summarize what is on my screen!")
+
+    def _chip_pdf(self):
+        self.trigger_pdf_summary()
+
+    def _chip_reminder(self):
+        self.chat_input.setText("Remind me in 30 minutes to ")
+        self.chat_input.setFocus()
+
     def _chip_study(self):
         self._start_custom_study(30, 3, hide=True)
 
     def _chip_battery(self):
         self._exec_laptop_cmd("battery")
 
-    def _chip_quiz(self):
-        self.process_user_prompt(
-            "I'm curious! As Eru Chitanda, please quiz me with one thought-provoking question "
-            "related to my study and exam preparation. Ask with genuine curiosity!"
+    # -------------------------------------------------------------
+    # SCREEN UNDERSTANDING & PDF SUMMARIZATION
+    # -------------------------------------------------------------
+    def trigger_screen_analysis(self, question="What am I looking at on this screen?"):
+        """Captures active screen and sends it for vision analysis."""
+        win_info = ScreenInspector.get_active_window_info()
+        b64_img = ScreenInspector.capture_screen_base64()
+
+        self.chat_display.append(
+            f"<div style='margin-bottom: 6px; text-align: right;'>"
+            f"<span style='background-color: #24163b; border: 1px solid #4a2d6b; border-radius: 8px; padding: 4px 8px; color: #38bdf8;'>"
+            f"<b>You:</b> 🔍 [Screen Vision] {question}"
+            f"</span></div>"
+        )
+        self.chat_display.append(
+            f"<div style='color: #a78bfa; font-size: 11px;'>Captured screen of <i>{win_info['app']}</i> (\"{win_info['title']}\")</div>"
         )
 
-    def _chip_break(self):
-        msg = "It's time for a gentle tea break! Please stretch, rest your eyes, and take a refreshing sip of water or warm tea!"
-        self.chat_display.append(f"<div style='margin-bottom: 6px;'><b style='color: #ec4899;'>🌸 Chitanda:</b> {msg}</div>")
-        self.character.say(msg, voice=self.voice_btn.isChecked())
+        prompt = (
+            f"The user asks about their Windows screen: \"{question}\"\n"
+            f"Active Application: {win_info['app']} | Window Title: \"{win_info['title']}\"\n"
+            f"Please explain clearly what is on the screen, identify any errors or key details, and give sweet, practical guidance!"
+        )
+        self.process_user_prompt(prompt, images=[b64_img])
 
-    def _chip_screenshot(self):
-        self._exec_laptop_cmd("screenshot")
+    def trigger_pdf_summary(self, target_query=""):
+        """Finds recent PDF documents and extracts text for Chitanda to summarize."""
+        recent = PdfDocumentReader.find_recent_pdfs(max_results=5)
+        if not recent:
+            self.chat_display.append("<div style='color: #ef4444;'>[Chitanda]: No PDF files found in Desktop, Downloads, or Documents.</div>")
+            return
+
+        selected = recent[0]
+        if target_query:
+            matched = next((p for p in recent if target_query.lower() in p["name"].lower()), None)
+            if matched:
+                selected = matched
+
+        self.chat_display.append(
+            f"<div style='margin-bottom: 6px; text-align: right;'>"
+            f"<span style='background-color: #24163b; border: 1px solid #4a2d6b; border-radius: 8px; padding: 4px 8px; color: #38bdf8;'>"
+            f"<b>You:</b> 📄 Read and summarize '{selected['name']}'"
+            f"</span></div>"
+        )
+
+        doc_text = PdfDocumentReader.read_pdf_text(selected["path"])
+        prompt = (
+            f"As Eru Chitanda, I'm so curious! Please provide a sweet, well-structured summary of this PDF document, "
+            f"highlighting the main concepts, key takeaways, and conclusions:\n\n{doc_text}"
+        )
+        self.process_user_prompt(prompt)
 
     # -------------------------------------------------------------
     # COMPATIBILITY HOOKS (CALLED BY CHARACTER / TIMERS)
@@ -356,7 +464,24 @@ class ChatWindow(QWidget):
             f"</span></div>"
         )
 
-        # 1. EXIT / DISMISS INTENT
+        # 1. SCREEN UNDERSTANDING INTENT
+        if any(w in lower for w in ["what's on my screen", "what is on my screen", "look at my screen", "summarize screen", "what am i looking at", "explain this error", "screen vision"]):
+            self.trigger_screen_analysis(text)
+            return
+
+        # 2. PDF SUMMARIZATION INTENT
+        if any(w in lower for w in ["read pdf", "summarize pdf", "read that pdf", "latest pdf", "summarize document"]):
+            self.trigger_pdf_summary(text)
+            return
+
+        # 3. TIMED REMINDERS INTENT
+        reminder_conf = self.character.reminder_manager.parse_and_add(text)
+        if reminder_conf:
+            self.chat_display.append(f"<div style='margin-bottom: 6px;'><b style='color: #ec4899;'>🌸 Chitanda:</b> {reminder_conf}</div>")
+            self.character.say(reminder_conf, voice=self.voice_btn.isChecked())
+            return
+
+        # 4. EXIT / DISMISS INTENT
         exit_phrases = ["you can go", "go away", "leave", "goodbye", "bye", "exit", "quit", "shut down", "dismiss"]
         if any(p == lower or lower.startswith(p + " ") or lower.endswith(" " + p) for p in exit_phrases):
             farewell = "Understood! You've worked so hard today. Please rest well, and call me back anytime! See you soon!"
@@ -365,7 +490,7 @@ class ChatWindow(QWidget):
             QTimer.singleShot(3000, self.character.dismiss_companion)
             return
 
-        # 2. HIDE COMMAND
+        # 5. HIDE COMMAND
         if any(h in lower for h in ["hide now", "hide", "go invisible", "disappear"]):
             reply = "Understood! Going invisible now so nothing distracts you! I'll pop right back up for your break. Do your best!"
             self.chat_display.append(f"<div style='margin-bottom: 6px;'><b style='color: #ec4899;'>🌸 Chitanda:</b> {reply}</div>")
@@ -374,7 +499,7 @@ class ChatWindow(QWidget):
             QTimer.singleShot(2500, self.hide)
             return
 
-        # 3. SHOW / UNHIDE
+        # 6. SHOW / UNHIDE
         if any(s in lower for s in ["show yourself", "unhide", "where are you", "come back", "show now"]):
             self.character.show_character()
             reply = "I'm right here! How is your study coming along? I'm so curious!"
@@ -382,8 +507,8 @@ class ChatWindow(QWidget):
             self.character.say(reply, voice=self.voice_btn.isChecked())
             return
 
-        # 4. STUDY & BREAK TIMER COMMAND
-        is_study = any(w in lower for w in ["study", "gate", "exam", "focus", "remind me"])
+        # 7. STUDY & BREAK TIMER COMMAND
+        is_study = any(w in lower for w in ["study", "gate", "exam", "focus"])
         has_time = any(w in lower for w in ["minute", "min", "hour"])
         if is_study and has_time:
             study_match = re.search(r'(\d+)\s*(?:minute|min)', lower)
@@ -394,7 +519,7 @@ class ChatWindow(QWidget):
             self._start_custom_study(study_mins, break_mins, hide=should_hide)
             return
 
-        # 5. TIMER STATUS
+        # 8. TIMER STATUS
         if any(q in lower for q in ["how much time left", "time remaining", "timer status"]):
             if self.character.study_manager.is_running:
                 mins = self.character.study_manager.remaining_seconds // 60
@@ -407,7 +532,7 @@ class ChatWindow(QWidget):
             self.character.say(reply, voice=self.voice_btn.isChecked())
             return
 
-        # 6. STOP TIMER
+        # 9. STOP TIMER
         if any(s in lower for s in ["stop timer", "cancel timer", "stop study"]):
             self.character.study_manager.stop_session()
             self.status_lbl.setText("● Ready • Classical Literature Club")
@@ -416,7 +541,7 @@ class ChatWindow(QWidget):
             self.character.say(reply, voice=self.voice_btn.isChecked())
             return
 
-        # 7. DIRECT LAPTOP ACTIONS
+        # 10. DIRECT LAPTOP ACTIONS
         if any(b in lower for b in ["battery", "charge level", "power status"]):
             self._exec_laptop_cmd("battery")
             return
@@ -442,7 +567,7 @@ class ChatWindow(QWidget):
             self._exec_laptop_cmd("desktop")
             return
 
-        # 8. WEB SEARCH (GOOGLE / YOUTUBE)
+        # 11. WEB SEARCH (GOOGLE / YOUTUBE)
         search_yt = re.search(r'(?:search youtube for|play on youtube|youtube)\s+([^.,;\n]+)', lower)
         if search_yt:
             q = search_yt.group(1).strip()
@@ -459,7 +584,7 @@ class ChatWindow(QWidget):
             self.character.say(reply, voice=self.voice_btn.isChecked())
             return
 
-        # 9. OPEN APPS
+        # 12. OPEN APPS
         open_match = re.search(r'^(?:please\s+)?open\s+(?:the\s+)?([a-zA-Z0-9_\s\.\:\-]+)', lower)
         if open_match:
             target = open_match.group(1).strip()
@@ -510,7 +635,7 @@ class ChatWindow(QWidget):
     # -------------------------------------------------------------
     # OLLAMA AI STREAMING & MEMORY PERSISTENCE
     # -------------------------------------------------------------
-    def process_user_prompt(self, user_text):
+    def process_user_prompt(self, user_text, images=None):
         if self.active_worker and self.active_worker.isRunning():
             self.active_worker.cancel()
 
@@ -525,7 +650,7 @@ class ChatWindow(QWidget):
         model = models[0] if models else "llama3.2:1b"
         messages = self.memory.get_context_messages()
 
-        self.active_worker = OllamaChatWorker(model, messages)
+        self.active_worker = OllamaChatWorker(model, messages, images=images)
         self.active_worker.token_received.connect(self._on_token)
         self.active_worker.response_finished.connect(self._on_finished)
         self.active_worker.error_occurred.connect(self._on_error)

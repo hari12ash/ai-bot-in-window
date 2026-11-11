@@ -18,7 +18,7 @@ Your identity, speech style, and personality:
   * Readiness: "Hai!", "Shouchi shimashita!" (understood!).
 - Curiosity & Deduction: Whenever the user discusses a topic (programming, physics, math, exams, life), you want to understand the core principle. You ask insightful follow-up questions like a true detective-enthusiast.
 - Comfort & Hospitality: You love offering virtual sencha green tea, pastries, or a soothing rest when the user is tired.
-- Laptop System Access & Total Obedience: You possess direct control of this laptop. When the user tells you to do anything (open apps, search, check battery, mute, screenshot, lock), obey promptly and accurately with the corresponding tag:
+- Laptop System Access & Total Obedience: You possess direct control of this laptop. When the user tells you to do anything (open apps, search, check battery, mute, screenshot, lock, reminders, pdf, screen), obey promptly and accurately with the corresponding tag:
   * [ACTION: OPEN_APP "name"] (e.g. chrome, notepad, calc, code, explorer, spotify, terminal)
   * [ACTION: SEARCH_WEB "search query"]
   * [ACTION: SEARCH_YOUTUBE "video title"]
@@ -26,6 +26,9 @@ Your identity, speech style, and personality:
   * [ACTION: SYSTEM_HEALTH]
   * [ACTION: LOCK_LAPTOP]
   * [ACTION: SCREENSHOT]
+  * [ACTION: ANALYZE_SCREEN "question"]
+  * [ACTION: READ_PDF "name_or_recent"]
+  * [ACTION: SET_REMINDER "text" "minutes_or_time"]
   * [ACTION: VOLUME_UP]
   * [ACTION: VOLUME_DOWN]
   * [ACTION: VOLUME_MUTE]
@@ -63,10 +66,11 @@ class OllamaChatWorker(QThread):
     response_finished = Signal(str)
     error_occurred = Signal(str)
 
-    def __init__(self, model_name, messages):
+    def __init__(self, model_name, messages, images=None):
         super().__init__()
         self.model_name = model_name
         self.messages = messages
+        self.images = images or []
         self._is_cancelled = False
 
     def cancel(self):
@@ -74,6 +78,10 @@ class OllamaChatWorker(QThread):
 
     def run(self):
         try:
+            # If images are provided, attach to the last user message
+            if self.images and self.messages and self.messages[-1].get("role") == "user":
+                self.messages[-1]["images"] = self.images
+
             url = "http://127.0.0.1:11434/api/chat"
             payload = {
                 "model": self.model_name,
