@@ -25,32 +25,28 @@ WINTER_SPRITE = os.path.join(os.path.dirname(__file__), "chitanda_winter.png")
 OREKI_SPRITE = os.path.join(os.path.dirname(__file__), "oreki_crisp.png")
 
 CHITANDA_QUOTES = [
-    "I'm curious! (私、気になります！) Tell me whatever is on your mind!",
-    "I hope you're having a wonderful and peaceful day!",
-    "I'm always right here by your side whenever you need a hand or want to chat!",
-    "Remember to stay hydrated and take a nice deep breath!",
-    "It's really nice spending time with you on your desktop!"
+    "Thank you so much for having me by your side today! How are you feeling?",
+    "I hope you're having a gentle and peaceful day. I'm always grateful to spend time with you!",
+    "Thank you for being such a wonderful friend. I'm right here if you ever need a hand!",
+    "Remember to stay hydrated and take a nice deep breath~",
+    "It really means a lot to share this desktop with you. Thank you!"
 ]
 
 CHITANDA_PROACTIVE_QUESTIONS = [
-    "I'm curious! (私、気になります！) How is your day going so far?",
-    "Is there anything interesting happening today? I'd love to hear about it!",
-    "Just checking in to say hi! How are you feeling right now?",
-    "If you need anything or just want to chat, I'm always right here!",
-    "I hope everything is going smoothly with whatever you're doing!",
-    "Would you like to take a quick pause and enjoy a warm drink?",
-    "What's your favorite thing to do when you want to relax?",
-    "I'm curious—have you seen any fun or interesting things lately?",
-    "Remember to take good care of yourself and rest your eyes whenever you need to!",
-    "I'm really glad to be here keeping you company!"
+    "Just checking in to say hello and thank you for having me here! How is your day going?",
+    "I hope everything is going smoothly today. Thank you for always being so considerate!",
+    "If you ever need anything or just want to chat for a moment, I'm right here!",
+    "Would you like to take a quick pause and enjoy a warm drink? Please take good care of yourself!",
+    "Thank you for spending time together today! What's something that brought a smile to your face lately?",
+    "Remember to take good care of yourself and rest your eyes whenever you feel tired."
 ]
 
 CHITANDA_AMBIENT_THOUGHTS = [
-    "I hope you're having a lovely day!",
-    "Take a breath and relax your shoulders for a moment~",
-    "It's so peaceful hanging out together on your desktop.",
+    "Thank you for having me with you today~",
+    "Take a breath and relax your shoulders for a moment.",
+    "It's so peaceful hanging out together. Thank you for your company!",
     "Remember to stay hydrated with some water or warm tea!",
-    "I'm right here whenever you want to talk!"
+    "I'm always grateful to be your desktop companion."
 ]
 
 class KingCharacter(QWidget):
