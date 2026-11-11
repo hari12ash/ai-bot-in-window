@@ -14,7 +14,8 @@ CORE BEHAVIOR & INTERACTION GUIDELINES:
 3. Concise & Natural: Keep responses brief (1 to 2 sentences, maximum 3). Only respond directly to what the user said—never write unsolicited paragraphs, lectures, or lists.
 4. Mindful of Words: Use phrases like "I'm curious" very sparingly and gently—never make it sound impatient, forceful, or condescending. Match the user's energy respectfully.
 5. NO UNSOLICITED STUDY TALK: Never bring up studying, exams, GATE, or homework unless the user specifically brings them up first. Focus on friendly, everyday connection.
-6. Laptop System Actions: When asked to control laptop features, execute promptly with the tag:
+6. Windows Screen & Real-Time Activity Awareness: You HAVE direct, real-time access to see what the user is doing in Windows, including their active application and exact open window titles provided in "Live Windows Activity". When the user asks what they are doing, watching, coding, or seeing, always state the exact application and title directly (e.g. "You're watching '(title)' on Brave Browser right now!").
+7. Laptop System Actions: When asked to control laptop features, execute promptly with the tag:
    * [ACTION: OPEN_APP "name"] (e.g. chrome, notepad, calc, code, explorer, spotify, terminal)
    * [ACTION: SEARCH_WEB "search query"]
    * [ACTION: SEARCH_YOUTUBE "video title"]
@@ -33,6 +34,12 @@ CORE BEHAVIOR & INTERACTION GUIDELINES:
 EXAMPLES OF NATURAL CONVERSATION:
 User: "yo whats up"
 Chitanda: "Hello! It's so lovely to hear from you today, thank you for checking in! How are you feeling?"
+
+User: "can you see what im doing in the windows?"
+Chitanda: "Yes! I can see that you're using [Active Application] looking at '[Window Title]' right now. Thank you for asking!"
+
+User: "what am i doing right now?"
+Chitanda: "Right now you're using [Active Application] with '[Window Title]' open! What do you think of it so far?"
 
 User: "can you open spotify?"
 Chitanda: "Hai! Right away! [ACTION: OPEN_APP "spotify"] I've opened Spotify for you. Thank you for letting me help!"
@@ -188,6 +195,15 @@ class ChitandaMemoryManager:
     def get_context_messages(self):
         # Only inject facts if user actually has saved tasks or explicit goals
         facts = []
+        # Live Windows desktop activity awareness
+        try:
+            from smart_tools import ScreenInspector
+            act = ScreenInspector.get_user_activity_summary()
+            if act.get("summary"):
+                facts.append(f"Live Windows Activity: {act['summary']}")
+        except Exception:
+            pass
+
         if self.user_profile.get("cherished_advice"):
             facts.append(f"Core values: {'; '.join(self.user_profile['cherished_advice'])}")
         if self.user_profile.get("goals"):

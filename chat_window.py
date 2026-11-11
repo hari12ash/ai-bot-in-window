@@ -370,27 +370,29 @@ class ChatWindow(QWidget):
     # -------------------------------------------------------------
     # SCREEN UNDERSTANDING & PDF SUMMARIZATION
     # -------------------------------------------------------------
-    def trigger_screen_analysis(self, question="What am I looking at on this screen?"):
-        """Captures active screen and sends it for vision analysis."""
-        win_info = ScreenInspector.get_active_window_info()
+    def trigger_screen_analysis(self, question="What am I looking at on this screen?", from_input=False):
+        """Captures active screen and inspects visible user windows."""
+        act = ScreenInspector.get_user_activity_summary()
         b64_img = ScreenInspector.capture_screen_base64()
 
+        if not from_input:
+            self.chat_display.append(
+                f"<div style='margin-bottom: 6px; text-align: right;'>"
+                f"<span style='background-color: #24163b; border: 1px solid #4a2d6b; border-radius: 8px; padding: 4px 8px; color: #38bdf8;'>"
+                f"<b>You:</b> 🔍 [Screen Vision] {question}"
+                f"</span></div>"
+            )
         self.chat_display.append(
-            f"<div style='margin-bottom: 6px; text-align: right;'>"
-            f"<span style='background-color: #24163b; border: 1px solid #4a2d6b; border-radius: 8px; padding: 4px 8px; color: #38bdf8;'>"
-            f"<b>You:</b> 🔍 [Screen Vision] {question}"
-            f"</span></div>"
-        )
-        self.chat_display.append(
-            f"<div style='color: #a78bfa; font-size: 11px;'>Captured screen of <i>{win_info['app']}</i> (\"{win_info['title']}\")</div>"
+            f"<div style='color: #a78bfa; font-size: 11px;'>Inspecting <i>{act['active_app']}</i> (\"{act['active_title'][:40]}\")</div>"
         )
 
         prompt = (
-            f"The user asks about their Windows screen: \"{question}\"\n"
-            f"Active Application: {win_info['app']} | Window Title: \"{win_info['title']}\"\n"
-            f"Please explain clearly what is on the screen, identify any errors or key details, and give sweet, practical guidance!"
+            f"The user asks: \"{question}\"\n"
+            f"Live Windows Context: {act['summary']}\n"
+            f"Active Application: {act['active_app']} | Window Title: \"{act['active_title']}\"\n"
+            f"Please respond kindly, concisely (1-2 sentences), and accurately stating what application and page/window the user currently has open."
         )
-        self.process_user_prompt(prompt, images=[b64_img])
+        self.process_user_prompt(prompt, images=[b64_img] if b64_img else None)
 
     def trigger_pdf_summary(self, target_query=""):
         """Finds recent PDF documents and extracts text for Chitanda to summarize."""
@@ -464,9 +466,19 @@ class ChatWindow(QWidget):
             f"</span></div>"
         )
 
-        # 1. SCREEN UNDERSTANDING INTENT
-        if any(w in lower for w in ["what's on my screen", "what is on my screen", "look at my screen", "summarize screen", "what am i looking at", "explain this error", "screen vision"]):
-            self.trigger_screen_analysis(text)
+        # 1. SCREEN & WINDOWS ACTIVITY UNDERSTANDING INTENT
+        screen_phrases = [
+            "what's on my screen", "what is on my screen", "look at my screen",
+            "summarize screen", "what am i looking at", "explain this error",
+            "screen vision", "what am i doing", "what am i actually doing",
+            "see what im doing", "see what i am doing", "can you see what im doing",
+            "can you see what i am doing", "see what im seeing", "see what i am seeing",
+            "look at what im doing", "check what im doing", "what window is this",
+            "can you see my screen", "can you see the windows", "can you see windows",
+            "see my windows", "inspect screen", "look at screen", "see windows"
+        ]
+        if any(w in lower for w in screen_phrases):
+            self.trigger_screen_analysis(text, from_input=True)
             return
 
         # 2. PDF SUMMARIZATION INTENT

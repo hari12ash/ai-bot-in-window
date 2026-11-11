@@ -1,5 +1,14 @@
 {
-  "history": [],
+  "history": [
+    {
+      "role": "user",
+      "content": "yo whats up"
+    },
+    {
+      "role": "assistant",
+      "content": "*Chitanda smiles warmly, nodding in greeting.* \"Hello! It's so lovely to hear from you today. How are you feeling? I'm just here to help and make sure everything is okay.\" *A gentle smile spreads across her face as she waits for your response*"
+    }
+  ],
   "user_profile": {
     "name": "Friend",
     "goals": [],

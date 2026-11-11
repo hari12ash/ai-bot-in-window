@@ -20,11 +20,72 @@ REMINDERS_FILE = os.path.join(os.path.dirname(__file__), "chitanda_reminders.jso
 # 1. SCREEN UNDERSTANDING & VISION
 # =====================================================================
 class ScreenInspector:
-    """Captures and analyzes what is currently on the user's screen."""
+    """Captures and analyzes what is currently on the user's screen in Windows."""
 
-    @staticmethod
-    def get_active_window_info() -> Dict[str, str]:
-        """Get the title and process name of the active foreground window."""
+    @classmethod
+    def get_open_windows(cls) -> List[Dict[str, str]]:
+        """Returns list of visible user windows (app name and window title)."""
+        results = []
+        try:
+            import ctypes
+            from ctypes import wintypes
+            user32 = ctypes.windll.user32
+
+            # Connect to desktop station if necessary
+            try:
+                hwinsta = user32.OpenWindowStationW('WinSta0', False, 0x037F)
+                if hwinsta:
+                    user32.SetProcessWindowStation(hwinsta)
+                    hdesk = user32.OpenDesktopW('Default', 0, False, 0x01FF)
+                    if hdesk:
+                        user32.SetThreadDesktop(hdesk)
+            except Exception:
+                pass
+
+            ignored_titles = {
+                'Program Manager', 'Settings', 'Default IME', 'MSCTFIME UI',
+                'Windows Input Experience', ''
+            }
+            ignored_apps = {'TextInputHost.exe'}
+            my_pid = os.getpid()
+
+            WNDENUMPROC = ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM)
+
+            def enum_cb(hwnd, _):
+                if user32.IsWindowVisible(hwnd) and not user32.IsIconic(hwnd):
+                    buf = ctypes.create_unicode_buffer(512)
+                    user32.GetWindowTextW(hwnd, buf, 512)
+                    title = buf.value.strip()
+                    if title and title not in ignored_titles:
+                        # Exclude Chitanda companion windows from being labeled as user work
+                        lower_t = title.lower()
+                        if "chitanda" in lower_t or "classical literature club" in lower_t:
+                            return True
+
+                        pid = wintypes.DWORD()
+                        user32.GetWindowThreadProcessId(hwnd, ctypes.byref(pid))
+                        if pid.value != my_pid:
+                            try:
+                                proc = psutil.Process(pid.value)
+                                app_name = proc.name()
+                                if app_name not in ignored_apps:
+                                    results.append({"app": app_name, "title": title, "pid": pid.value})
+                            except Exception:
+                                pass
+                return True
+
+            cb = WNDENUMPROC(enum_cb)
+            user32.EnumWindows(cb, 0)
+        except Exception as e:
+            print("Enum windows error:", e)
+        return results
+
+    @classmethod
+    def get_active_window_info(cls) -> Dict[str, str]:
+        """Get the title and process name of the user's active window."""
+        windows = cls.get_open_windows()
+        if windows:
+            return windows[0]
         try:
             hwnd = win32gui.GetForegroundWindow()
             title = win32gui.GetWindowText(hwnd).strip()
@@ -32,10 +93,46 @@ class ScreenInspector:
             proc = psutil.Process(pid)
             return {
                 "title": title or "Desktop",
-                "app": proc.name() or "Unknown"
+                "app": proc.name() or "Windows"
             }
         except Exception:
-            return {"title": "Active Desktop", "app": "Windows"}
+            return {"title": "Windows Desktop", "app": "explorer.exe"}
+
+    @classmethod
+    def get_user_activity_summary(cls) -> Dict[str, any]:
+        """Provides a complete summary of what the user is currently doing on Windows."""
+        windows = cls.get_open_windows()
+        if not windows:
+            return {
+                "active_app": "Windows Desktop",
+                "active_title": "Desktop",
+                "open_windows": [],
+                "summary": "You are currently viewing your Windows desktop."
+            }
+
+        main_win = windows[0]
+        app_clean = main_win["app"].replace(".exe", "").capitalize()
+        lower_app = main_win["app"].lower()
+        if "chrome" in lower_app: app_clean = "Google Chrome"
+        elif "brave" in lower_app: app_clean = "Brave Browser"
+        elif "code" in lower_app: app_clean = "Visual Studio Code"
+        elif "spotify" in lower_app: app_clean = "Spotify"
+        elif "explorer" in lower_app: app_clean = "File Explorer"
+        elif "windowsterminal" in lower_app: app_clean = "Terminal / PowerShell"
+        elif "discord" in lower_app: app_clean = "Discord"
+        elif "notepad" in lower_app: app_clean = "Notepad"
+
+        summary = f"You are currently using {app_clean} with '{main_win['title']}'."
+        if len(windows) > 1:
+            others = [f"{w['app'].replace('.exe', '')} (\"{w['title'][:25]}...\")" for w in windows[1:4]]
+            summary += f" You also have {', '.join(others)} open in Windows."
+
+        return {
+            "active_app": app_clean,
+            "active_title": main_win["title"],
+            "open_windows": windows,
+            "summary": summary
+        }
 
     @staticmethod
     def capture_screen_base64(max_dimension=1024) -> str:
@@ -61,8 +158,8 @@ class ScreenInspector:
     @classmethod
     def analyze_screen(cls, question: str = "What am I looking at on this screen?") -> str:
         """Inspects the active window context and prepares a vision / screen description."""
-        win_info = cls.get_active_window_info()
-        context = f"Active Application: {win_info['app']} | Window Title: \"{win_info['title']}\""
+        activity = cls.get_user_activity_summary()
+        context = f"Active Application: {activity['active_app']} | Window Title: \"{activity['active_title']}\""
         return f"[SCREENSHOT CAPTURED | {context}]\nQuestion: {question}"
 
 
