@@ -1,0 +1,65 @@
+# Chitanda Eru Materials
+
+newmtl SkinMat
+Kd 1.0 0.88 0.82
+Ka 0.2 0.2 0.2
+Ks 0.2 0.2 0.2
+d 1.0
+illum 2
+
+newmtl VioletEyes
+Kd 0.48 0.18 0.75
+Ka 0.2 0.2 0.2
+Ks 0.2 0.2 0.2
+d 1.0
+illum 2
+
+newmtl WhiteClean
+Kd 1.0 1.0 1.0
+Ka 0.2 0.2 0.2
+Ks 0.2 0.2 0.2
+d 1.0
+illum 2
+
+newmtl DarkHair
+Kd 0.12 0.12 0.18
+Ka 0.2 0.2 0.2
+Ks 0.2 0.2 0.2
+d 1.0
+illum 2
+
+newmtl WhiteUniform
+Kd 0.96 0.96 0.98
+Ka 0.2 0.2 0.2
+Ks 0.2 0.2 0.2
+d 1.0
+illum 2
+
+newmtl NavyTrim
+Kd 0.10 0.14 0.26
+Ka 0.2 0.2 0.2
+Ks 0.2 0.2 0.2
+d 1.0
+illum 2
+
+newmtl RibbonCyan
+Kd 0.15 0.55 0.80
+Ka 0.2 0.2 0.2
+Ks 0.2 0.2 0.2
+d 1.0
+illum 2
+
+newmtl BlackSocks
+Kd 0.08 0.08 0.10
+Ka 0.2 0.2 0.2
+Ks 0.2 0.2 0.2
+d 1.0
+illum 2
+
+newmtl BrownLoafer
+Kd 0.28 0.16 0.10
+Ka 0.2 0.2 0.2
+Ks 0.2 0.2 0.2
+d 1.0
+illum 2
+

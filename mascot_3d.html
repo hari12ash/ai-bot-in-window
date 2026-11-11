@@ -26,90 +26,230 @@
 <body>
 <div id="canvas-container"></div>
 <script>
-// --- AUTHENTIC 2.5D / 3D CEL-SHADED CHITANDA ENGINE ---
+// =====================================================================
+// CHITANDA ERU 3D ARTICULATED ANIME ENGINE (from Chitanda_Eru)
+// =====================================================================
 const container = document.getElementById('canvas-container');
 const width = window.innerWidth;
 const height = window.innerHeight;
 
 const scene = new THREE.Scene();
-const camera = new THREE.PerspectiveCamera(40, width / height, 0.1, 100);
-camera.position.set(0, 0, 4.8);
+const camera = new THREE.PerspectiveCamera(36, width / height, 0.1, 100);
+// Center camera perfectly on Chitanda's upper body / full torso
+camera.position.set(0, 0.95, 3.1);
 
 const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
 renderer.setSize(width, height);
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 container.appendChild(renderer.domElement);
 
-// Lighting
-const ambientLight = new THREE.AmbientLight(0xfff5ea, 1.1);
+// Lighting setup (Warm anime cel-shaded studio)
+const ambientLight = new THREE.AmbientLight(0xfff7f0, 1.25);
 scene.add(ambientLight);
 
-const dirLight = new THREE.DirectionalLight(0xffe4e6, 0.8);
-dirLight.position.set(2, 4, 3);
+const dirLight = new THREE.DirectionalLight(0xffeedd, 0.95);
+dirLight.position.set(2.5, 4.0, 3.0);
+dirLight.castShadow = true;
 scene.add(dirLight);
 
-const rimLight = new THREE.DirectionalLight(0xd8b4fe, 0.6);
-rimLight.position.set(-3, 2, -1);
+const rimLight = new THREE.DirectionalLight(0xd8b4fe, 0.65);
+rimLight.position.set(-2.5, 2.5, -1.5);
 scene.add(rimLight);
 
-// Root Group
-const chitandaRoot = new THREE.Group();
-scene.add(chitandaRoot);
+const characterRoot = new THREE.Group();
+scene.add(characterRoot);
 
-// Load Authentic Chitanda Sprite Texture
-const textureLoader = new THREE.TextureLoader();
-const spriteTexture = textureLoader.load('chitanda_uniform.png', (tex) => {
-  tex.minFilter = THREE.LinearFilter;
-  tex.magFilter = THREE.LinearFilter;
-});
+// Materials from Chitanda_Eru specification
+const skinMat = new THREE.MeshToonMaterial({ color: 0xffe5d9 });
+const darkHairMat = new THREE.MeshToonMaterial({ color: 0x181824 });
+const violetEyeMat = new THREE.MeshBasicMaterial({ color: 0x9c27b0 });
+const whiteMat = new THREE.MeshToonMaterial({ color: 0xfafafa });
+const navyMat = new THREE.MeshToonMaterial({ color: 0x161c2d });
+const ribbonMat = new THREE.MeshToonMaterial({ color: 0x00acc1 });
+const blackSockMat = new THREE.MeshToonMaterial({ color: 0x1a1a20 });
+const brownLoaferMat = new THREE.MeshStandardMaterial({ color: 0x4a2c1d, roughness: 0.4 });
 
-// Texture Aspect Ratio: 157x404 -> H: 3.2, W: 3.2 * (157/404) ≈ 1.24
-const planeGeo = new THREE.PlaneGeometry(1.24, 3.2);
+const joints = {};
 
-// Double-sided material with alpha transparency and subtle cel lighting
-const chitandaMat = new THREE.MeshLambertMaterial({
-  map: spriteTexture,
-  transparent: true,
-  alphaTest: 0.05,
-  side: THREE.DoubleSide
-});
+// --- 1. HIPS & SPINE ---
+const hips = new THREE.Group();
+hips.position.y = 0.90;
+characterRoot.add(hips);
+joints.hips = hips;
 
-const chitandaMesh = new THREE.Mesh(planeGeo, chitandaMat);
-chitandaMesh.position.y = -0.15;
-chitandaRoot.add(chitandaMesh);
+const spine = new THREE.Group();
+hips.add(spine);
+joints.spine = spine;
 
-// Subtle 3D Depth Shadow Plane
-const shadowGeo = new THREE.PlaneGeometry(1.0, 0.28);
-const shadowMat = new THREE.MeshBasicMaterial({
-  color: 0x000000,
-  transparent: true,
-  opacity: 0.25
-});
-const shadowMesh = new THREE.Mesh(shadowGeo, shadowMat);
-shadowMesh.rotation.x = -Math.PI / 2;
-shadowMesh.position.set(0, -1.72, 0);
-chitandaRoot.add(shadowMesh);
+// Uniform Torso
+const torso = new THREE.Mesh(new THREE.CylinderGeometry(0.20, 0.18, 0.45, 14), whiteMat);
+torso.position.y = 0.25;
+torso.castShadow = true;
+spine.add(torso);
 
-// 3D Sakura Blossom Particle System
-const petalCount = 28;
+// Navy Sailor Collar Flap
+const collarFlap = new THREE.Mesh(new THREE.BoxGeometry(0.36, 0.05, 0.26), navyMat);
+collarFlap.position.set(0, 0.44, -0.06);
+collarFlap.castShadow = true;
+spine.add(collarFlap);
+
+// Light Blue Ribbon
+const ribbon = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.14, 0.05), ribbonMat);
+ribbon.position.set(0, 0.35, 0.17);
+spine.add(ribbon);
+
+// Pleated Navy Skirt
+const skirt = new THREE.Mesh(new THREE.CylinderGeometry(0.19, 0.33, 0.34, 18), navyMat);
+skirt.position.y = -0.04;
+skirt.castShadow = true;
+hips.add(skirt);
+
+// --- 2. HEAD & HAIR ---
+const neck = new THREE.Group();
+neck.position.y = 0.52;
+spine.add(neck);
+
+const head = new THREE.Group();
+head.position.y = 0.19;
+neck.add(head);
+joints.head = head;
+
+const headMesh = new THREE.Mesh(new THREE.SphereGeometry(0.22, 20, 20), skinMat);
+headMesh.scale.set(0.9, 1.05, 0.95);
+headMesh.castShadow = true;
+head.add(headMesh);
+
+// Sparkling Violet Eyes
+const eyeL = new THREE.Mesh(new THREE.PlaneGeometry(0.06, 0.08), violetEyeMat);
+eyeL.position.set(-0.075, 0.03, 0.205);
+eyeL.rotation.y = 0.18;
+const eyeR = eyeL.clone();
+eyeR.position.set(0.075, 0.03, 0.205);
+eyeR.rotation.y = -0.18;
+
+const glint = new THREE.Mesh(new THREE.PlaneGeometry(0.02, 0.02), whiteMat);
+glint.position.set(-0.065, 0.05, 0.21);
+const glint2 = glint.clone();
+glint2.position.set(0.085, 0.05, 0.21);
+head.add(eyeL, eyeR, glint, glint2);
+
+// Hair Group
+const hairBase = new THREE.Group();
+head.add(hairBase);
+
+const scalp = new THREE.Mesh(new THREE.SphereGeometry(0.25, 16, 16), darkHairMat);
+scalp.position.set(0, 0.05, -0.04);
+scalp.scale.set(1.0, 1.02, 1.02);
+hairBase.add(scalp);
+
+const bangs = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.14, 0.07), darkHairMat);
+bangs.position.set(0, 0.13, 0.17);
+bangs.rotation.x = 0.15;
+hairBase.add(bangs);
+
+const sideHairL = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.38, 0.09), darkHairMat);
+sideHairL.position.set(-0.19, -0.08, 0.10);
+sideHairL.rotation.z = -0.1;
+const sideHairR = sideHairL.clone();
+sideHairR.position.set(0.19, -0.08, 0.10);
+sideHairR.rotation.z = 0.1;
+hairBase.add(sideHairL, sideHairR);
+
+const backHair = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.75, 0.10), darkHairMat);
+backHair.position.set(0, -0.28, -0.18);
+backHair.rotation.x = -0.1;
+backHair.castShadow = true;
+hairBase.add(backHair);
+
+const backHairLower = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.45, 0.08), darkHairMat);
+backHairLower.position.set(0, -0.68, -0.22);
+backHairLower.castShadow = true;
+hairBase.add(backHairLower);
+
+// --- 3. ARMS ---
+function buildArm(isLeft) {
+    const sign = isLeft ? -1 : 1;
+    const shoulder = new THREE.Group();
+    shoulder.position.set(sign * 0.28, 0.42, 0);
+    spine.add(shoulder);
+
+    const sleeve = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.08, 0.22, 10), whiteMat);
+    sleeve.position.y = -0.08;
+    sleeve.castShadow = true;
+    shoulder.add(sleeve);
+
+    const elbow = new THREE.Group();
+    elbow.position.y = -0.25;
+    shoulder.add(elbow);
+
+    const forearm = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.055, 0.26, 10), skinMat);
+    forearm.position.y = -0.12;
+    forearm.castShadow = true;
+    elbow.add(forearm);
+
+    const hand = new THREE.Mesh(new THREE.SphereGeometry(0.055, 8, 8), skinMat);
+    hand.position.y = -0.26;
+    elbow.add(hand);
+
+    return { shoulder, elbow, hand };
+}
+
+joints.leftArm = buildArm(true);
+joints.rightArm = buildArm(false);
+
+// --- 4. LEGS ---
+function buildLeg(isLeft) {
+    const sign = isLeft ? -1 : 1;
+    const hipJoint = new THREE.Group();
+    hipJoint.position.set(sign * 0.12, 0, 0);
+    hips.add(hipJoint);
+
+    const thigh = new THREE.Mesh(new THREE.CylinderGeometry(0.085, 0.075, 0.24, 10), skinMat);
+    thigh.position.y = -0.12;
+    thigh.castShadow = true;
+    hipJoint.add(thigh);
+
+    const knee = new THREE.Group();
+    knee.position.y = -0.26;
+    hipJoint.add(knee);
+
+    const sock = new THREE.Mesh(new THREE.CylinderGeometry(0.075, 0.065, 0.42, 10), blackSockMat);
+    sock.position.y = -0.20;
+    sock.castShadow = true;
+    knee.add(sock);
+
+    const loafer = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.07, 0.20), brownLoaferMat);
+    loafer.position.set(0, -0.42, 0.04);
+    loafer.castShadow = true;
+    knee.add(loafer);
+
+    return { hipJoint, knee, foot: loafer };
+}
+
+joints.leftLeg = buildLeg(true);
+joints.rightLeg = buildLeg(false);
+
+// --- 5. SAKURA BLOSSOMS PARTICLE SYSTEM ---
+const petalCount = 20;
 const petalGeo = new THREE.BufferGeometry();
 const petalPositions = new Float32Array(petalCount * 3);
 const petalVelocities = [];
 
 for (let i = 0; i < petalCount; i++) {
-  petalPositions[i * 3] = (Math.random() - 0.5) * 2.8;
-  petalPositions[i * 3 + 1] = (Math.random() - 0.5) * 3.6;
-  petalPositions[i * 3 + 2] = (Math.random() - 0.5) * 1.5;
-  petalVelocities.push({
-    vx: (Math.random() - 0.5) * 0.012,
-    vy: -(Math.random() * 0.012 + 0.008),
-    vz: (Math.random() - 0.5) * 0.008,
-    rot: Math.random() * Math.PI
-  });
+    petalPositions[i * 3] = (Math.random() - 0.5) * 2.4;
+    petalPositions[i * 3 + 1] = Math.random() * 2.4;
+    petalPositions[i * 3 + 2] = (Math.random() - 0.5) * 1.6;
+    petalVelocities.push({
+        vx: (Math.random() - 0.5) * 0.008,
+        vy: -(Math.random() * 0.008 + 0.004),
+        vz: (Math.random() - 0.5) * 0.006,
+        rot: Math.random() * Math.PI
+    });
 }
 petalGeo.setAttribute('position', new THREE.BufferAttribute(petalPositions, 3));
 
-// Create cute pink petal canvas texture
 const pCanvas = document.createElement('canvas');
 pCanvas.width = 32;
 pCanvas.height = 32;
@@ -121,87 +261,128 @@ pCtx.fill();
 const petalTexture = new THREE.CanvasTexture(pCanvas);
 
 const petalMat = new THREE.PointsMaterial({
-  size: 0.16,
-  map: petalTexture,
-  transparent: true,
-  opacity: 0.75,
-  depthWrite: false
+    size: 0.14,
+    map: petalTexture,
+    transparent: true,
+    opacity: 0.70,
+    depthWrite: false
 });
 const petalParticles = new THREE.Points(petalGeo, petalMat);
 scene.add(petalParticles);
 
-// State & Animation
-let currentState = "WALK";
+// --- STATE & INTERACTIVE CONTROL ---
+let currentState = "STAND";
 let lookTarget = { x: 0, y: 0 };
 let currentLook = { x: 0, y: 0 };
 let clock = new THREE.Clock();
+let walkCycle = 0;
 
 window.setMascotState = function(state) {
-  currentState = state;
+    currentState = state;
 };
 
 window.setTargetLook = function(dx, dy) {
-  lookTarget.x = Math.max(-1, Math.min(1, dx));
-  lookTarget.y = Math.max(-1, Math.min(1, dy));
+    lookTarget.x = Math.max(-1, Math.min(1, dx));
+    lookTarget.y = Math.max(-1, Math.min(1, dy));
 };
 
-function animate() {
-  requestAnimationFrame(animate);
-  const time = clock.getElapsedTime();
-
-  // Smooth mouse look-at tracking
-  currentLook.x += (lookTarget.x - currentLook.x) * 0.08;
-  currentLook.y += (lookTarget.y - currentLook.y) * 0.08;
-
-  // Head and body 3D tilt
-  chitandaMesh.rotation.y = currentLook.x * 0.45;
-  chitandaMesh.rotation.x = -currentLook.y * 0.25;
-
-  if (currentState === "WALK") {
-    // Walking stride bounce and momentum sway
-    const bounce = -Math.abs(Math.sin(time * 6.0)) * 0.08;
-    chitandaMesh.position.y = -0.15 + bounce;
-    chitandaMesh.rotation.z = Math.sin(time * 3.0) * 0.06;
-    shadowMesh.scale.setScalar(1.0 + bounce * 1.5);
-  } else if (currentState === "CURIOUS") {
-    // Leaning forward eagerly
-    chitandaMesh.position.y = -0.10 + Math.sin(time * 3.0) * 0.03;
-    chitandaMesh.rotation.x = -0.18 + Math.sin(time * 2.0) * 0.03;
-    chitandaMesh.rotation.z = Math.sin(time * 1.5) * 0.02;
-  } else if (currentState === "SLEEP") {
-    chitandaMesh.position.y = -0.18 + Math.sin(time * 1.2) * 0.02;
-    chitandaMesh.rotation.z = 0.08;
-  } else {
-    // Stand breathing
-    chitandaMesh.position.y = -0.15 + Math.sin(time * 2.2) * 0.03;
-    chitandaMesh.rotation.z = Math.sin(time * 1.1) * 0.015;
-  }
-
-  // Update Sakura Petals
-  const posArr = petalGeo.attributes.position.array;
-  for (let i = 0; i < petalCount; i++) {
-    const v = petalVelocities[i];
-    posArr[i * 3] += v.vx + Math.sin(time + i) * 0.003;
-    posArr[i * 3 + 1] += v.vy;
-    posArr[i * 3 + 2] += v.vz;
-
-    if (posArr[i * 3 + 1] < -1.9) {
-      posArr[i * 3 + 1] = 1.9;
-      posArr[i * 3] = (Math.random() - 0.5) * 2.8;
-    }
-  }
-  petalGeo.attributes.position.needsUpdate = true;
-
-  renderer.render(scene, camera);
-}
-
 window.addEventListener('resize', () => {
-  const w = window.innerWidth;
-  const h = window.innerHeight;
-  camera.aspect = w / h;
-  camera.updateProjectionMatrix();
-  renderer.setSize(w, h);
+    const w = window.innerWidth;
+    const h = window.innerHeight;
+    camera.aspect = w / h;
+    camera.updateProjectionMatrix();
+    renderer.setSize(w, h);
 });
+
+// --- ANIMATION LOOP ---
+function animate() {
+    requestAnimationFrame(animate);
+    const dt = clock.getDelta();
+    const time = clock.getElapsedTime();
+
+    // Smooth cursor look-at tracking
+    currentLook.x += (lookTarget.x - currentLook.x) * 0.10;
+    currentLook.y += (lookTarget.y - currentLook.y) * 0.10;
+
+    // Head and neck follow mouse
+    joints.head.rotation.y = currentLook.x * 0.40;
+    joints.head.rotation.x = -currentLook.y * 0.25;
+    joints.spine.rotation.y = currentLook.x * 0.18;
+
+    if (currentState === "WALK") {
+        walkCycle += dt * 7.5;
+        // Natural walking stride kinematics
+        joints.hips.position.y = 0.90 + Math.abs(Math.sin(walkCycle)) * 0.05;
+        joints.spine.rotation.x = 0.10;
+
+        joints.leftLeg.hipJoint.rotation.x = Math.sin(walkCycle) * 0.65;
+        joints.rightLeg.hipJoint.rotation.x = -Math.sin(walkCycle) * 0.65;
+        joints.leftLeg.knee.rotation.x = Math.max(0, -Math.sin(walkCycle) * 0.75);
+        joints.rightLeg.knee.rotation.x = Math.max(0, Math.sin(walkCycle) * 0.75);
+
+        joints.leftArm.shoulder.rotation.x = -Math.sin(walkCycle) * 0.55;
+        joints.rightArm.shoulder.rotation.x = Math.sin(walkCycle) * 0.55;
+        joints.leftArm.elbow.rotation.x = -0.22;
+        joints.rightArm.elbow.rotation.x = -0.22;
+
+    } else if (currentState === "CURIOUS") {
+        // "Watashi, Kininarimasu!" forward leaning pose with tilted head
+        joints.hips.position.y = 0.88;
+        joints.spine.rotation.x = 0.38;
+        joints.head.rotation.x = -0.25;
+        joints.head.rotation.z = Math.sin(time * 6) * 0.06;
+
+        joints.leftArm.shoulder.rotation.set(-0.5, 0.35, 0.25);
+        joints.rightArm.shoulder.rotation.set(-0.5, -0.35, -0.25);
+        joints.leftArm.elbow.rotation.x = -0.7;
+        joints.rightArm.elbow.rotation.x = -0.7;
+
+        joints.leftLeg.hipJoint.rotation.set(0, 0, 0);
+        joints.rightLeg.hipJoint.rotation.set(0, 0, 0);
+        joints.leftLeg.knee.rotation.x = 0;
+        joints.rightLeg.knee.rotation.x = 0;
+
+    } else if (currentState === "REACTION" || currentState === "BOW") {
+        // Polite greeting bow
+        joints.spine.rotation.x = 0.42;
+        joints.head.rotation.x = 0.12;
+        joints.leftArm.shoulder.rotation.set(0.25, 0.15, 0);
+        joints.rightArm.shoulder.rotation.set(0.25, -0.15, 0);
+
+    } else {
+        // STAND / Idle breathing
+        const breathe = time * 2.2;
+        joints.hips.position.y = 0.90 + Math.sin(breathe) * 0.015;
+        joints.spine.rotation.x = Math.sin(breathe) * 0.02;
+
+        joints.leftArm.shoulder.rotation.set(0, 0, -0.10);
+        joints.rightArm.shoulder.rotation.set(0, 0, 0.10);
+        joints.leftArm.elbow.rotation.x = 0;
+        joints.rightArm.elbow.rotation.x = 0;
+
+        joints.leftLeg.hipJoint.rotation.set(0, 0, 0);
+        joints.rightLeg.hipJoint.rotation.set(0, 0, 0);
+        joints.leftLeg.knee.rotation.x = 0;
+        joints.rightLeg.knee.rotation.x = 0;
+    }
+
+    // Sakura blossoms drifting animation
+    const positions = petalGeo.attributes.position.array;
+    for (let i = 0; i < petalCount; i++) {
+        const vel = petalVelocities[i];
+        positions[i * 3] += vel.vx;
+        positions[i * 3 + 1] += vel.vy;
+        positions[i * 3 + 2] += vel.vz;
+
+        if (positions[i * 3 + 1] < -0.1) {
+            positions[i * 3 + 1] = 2.4;
+            positions[i * 3] = (Math.random() - 0.5) * 2.4;
+        }
+    }
+    petalGeo.attributes.position.needsUpdate = true;
+
+    renderer.render(scene, camera);
+}
 
 animate();
 </script>

@@ -1,0 +1,1644 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Autonomous AI 3D Movable Characters - Zenitsu & Chitanda Eru</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            user-select: none;
+        }
+
+        body {
+            overflow: hidden;
+            background: #11141a;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            color: #fff;
+        }
+
+        #canvas-container {
+            width: 100vw;
+            height: 100vh;
+            display: block;
+        }
+
+        /* HUD Overlays */
+        #hud {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            padding: 24px;
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            flex-wrap: wrap;
+            gap: 16px;
+        }
+
+        .title-badge {
+            background: rgba(18, 18, 24, 0.88);
+            backdrop-filter: blur(14px);
+            border: 2px solid #fbc02d;
+            border-radius: 14px;
+            padding: 12px 20px;
+            box-shadow: 0 8px 32px rgba(251, 192, 45, 0.25);
+            pointer-events: auto;
+            transition: border-color 0.3s, box-shadow 0.3s;
+        }
+
+        .title-badge.chitanda-theme {
+            border-color: #ba68c8;
+            box-shadow: 0 8px 32px rgba(186, 104, 200, 0.25);
+        }
+
+        .title-badge h1 {
+            font-size: 20px;
+            font-weight: 800;
+            color: #fff176;
+            letter-spacing: 0.5px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .title-badge.chitanda-theme h1 {
+            color: #e1bee7;
+            text-shadow: 0 0 10px rgba(206, 147, 216, 0.6);
+        }
+
+        .title-badge p {
+            font-size: 13px;
+            color: #ffcc80;
+            margin-top: 3px;
+        }
+
+        .title-badge.chitanda-theme p {
+            color: #ce93d8;
+        }
+
+        /* Character Switcher */
+        .char-switch-group {
+            display: flex;
+            gap: 6px;
+            background: rgba(18, 18, 24, 0.9);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            border-radius: 12px;
+            padding: 4px;
+            pointer-events: auto;
+        }
+
+        .char-tab-btn {
+            background: transparent;
+            border: none;
+            color: #b0bec5;
+            padding: 9px 16px;
+            font-weight: 700;
+            font-size: 13px;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .char-tab-btn.active.zenitsu {
+            background: linear-gradient(135deg, #f57f17, #fbc02d);
+            color: #111;
+            box-shadow: 0 3px 12px rgba(251, 192, 45, 0.4);
+        }
+
+        .char-tab-btn.active.chitanda {
+            background: linear-gradient(135deg, #ab47bc, #7e57c2);
+            color: #fff;
+            box-shadow: 0 3px 12px rgba(171, 71, 188, 0.4);
+        }
+
+        .top-actions {
+            display: flex;
+            gap: 10px;
+            pointer-events: auto;
+            align-items: center;
+        }
+
+        /* AI Autopilot Toggle Button */
+        .btn-ai {
+            background: linear-gradient(135deg, #00c853, #00e676);
+            color: #05260f;
+            border: none;
+            border-radius: 10px;
+            font-weight: 800;
+            font-size: 13px;
+            padding: 9px 18px;
+            cursor: pointer;
+            box-shadow: 0 0 16px rgba(0, 230, 118, 0.5);
+            transition: all 0.25s ease;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            animation: aiPulse 2s infinite alternate;
+        }
+
+        .btn-ai.manual {
+            background: rgba(30, 32, 44, 0.9);
+            color: #cfd8dc;
+            border: 1px solid #546e7a;
+            box-shadow: none;
+            animation: none;
+        }
+
+        @keyframes aiPulse {
+            0% { box-shadow: 0 0 8px rgba(0, 230, 118, 0.3); }
+            100% { box-shadow: 0 0 20px rgba(0, 230, 118, 0.8); }
+        }
+
+        .ai-pulse-dot {
+            width: 9px;
+            height: 9px;
+            background: #ffffff;
+            border-radius: 50%;
+            display: inline-block;
+            box-shadow: 0 0 6px #fff;
+            animation: blinkDot 1s infinite alternate;
+        }
+
+        .btn-ai.manual .ai-pulse-dot {
+            background: #78909c;
+            animation: none;
+            box-shadow: none;
+        }
+
+        @keyframes blinkDot {
+            0% { opacity: 0.3; transform: scale(0.8); }
+            100% { opacity: 1; transform: scale(1.1); }
+        }
+
+        .btn {
+            background: linear-gradient(135deg, #f57f17, #fbc02d);
+            border: none;
+            border-radius: 10px;
+            color: #111;
+            font-weight: 700;
+            font-size: 13px;
+            padding: 9px 16px;
+            cursor: pointer;
+            box-shadow: 0 4px 15px rgba(245, 127, 23, 0.4);
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(245, 127, 23, 0.7);
+        }
+
+        .btn-outline {
+            background: rgba(20, 20, 28, 0.85);
+            backdrop-filter: blur(8px);
+            border: 1px solid #ffd54f;
+            color: #ffd54f;
+        }
+
+        .btn-outline:hover {
+            background: rgba(255, 213, 79, 0.2);
+            color: #fff;
+        }
+
+        /* Controls Panel */
+        .controls-card {
+            background: rgba(18, 18, 24, 0.88);
+            backdrop-filter: blur(14px);
+            border: 1px solid rgba(255, 213, 79, 0.4);
+            border-radius: 14px;
+            padding: 16px 20px;
+            pointer-events: auto;
+            max-width: 440px;
+            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.6);
+            transition: border-color 0.3s;
+        }
+
+        .controls-card.chitanda-theme {
+            border-color: rgba(186, 104, 200, 0.5);
+        }
+
+        /* AI Status Badge */
+        .ai-status-badge {
+            background: rgba(8, 24, 14, 0.9);
+            border: 1px solid #00e676;
+            border-radius: 8px;
+            padding: 8px 12px;
+            font-size: 12px;
+            color: #b9f6ca;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 12px;
+            font-weight: 600;
+        }
+
+        .ai-status-badge.manual {
+            background: rgba(24, 28, 38, 0.85);
+            border-color: #546e7a;
+            color: #cfd8dc;
+        }
+
+        .controls-card h3 {
+            font-size: 13px;
+            color: #ffd54f;
+            margin-bottom: 12px;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .controls-card.chitanda-theme h3 {
+            color: #ce93d8;
+        }
+
+        .key-hints {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 8px;
+            font-size: 12px;
+        }
+
+        .key-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: #e0e0e0;
+        }
+
+        .kbd {
+            background: #2a2c38;
+            border: 1px solid #45495e;
+            box-shadow: 0 2px 0 #15161c;
+            border-radius: 6px;
+            padding: 3px 8px;
+            font-family: monospace;
+            font-size: 11px;
+            font-weight: bold;
+            color: #fff176;
+            min-width: 24px;
+            text-align: center;
+        }
+
+        .chitanda-theme .kbd {
+            color: #f48fb1;
+            border-color: #7b1fa2;
+        }
+
+        /* Bottom Action Bar */
+        .bottom-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-end;
+            width: 100%;
+            gap: 16px;
+            flex-wrap: wrap;
+        }
+
+        .action-triggers {
+            display: flex;
+            gap: 10px;
+            pointer-events: auto;
+        }
+
+        .action-btn {
+            background: rgba(25, 27, 36, 0.9);
+            border: 1px solid #ffb300;
+            color: #ffe082;
+            border-radius: 10px;
+            padding: 10px 16px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .action-btn:hover {
+            background: #ffb300;
+            color: #111;
+            transform: translateY(-2px);
+        }
+
+        .action-btn.chitanda-btn {
+            border-color: #ba68c8;
+            color: #f3e5f5;
+        }
+
+        .action-btn.chitanda-btn:hover {
+            background: #ab47bc;
+            color: #fff;
+        }
+
+        #flash-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: #ffffff;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.1s ease-out;
+            z-index: 100;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: rgba(0, 0, 0, 0.75);
+            backdrop-filter: blur(10px);
+            z-index: 200;
+            justify-content: center;
+            align-items: center;
+            pointer-events: auto;
+        }
+
+        .modal-content {
+            background: #1a1c24;
+            border: 2px solid #ffd54f;
+            border-radius: 16px;
+            padding: 26px;
+            max-width: 580px;
+            width: 90%;
+            color: #e0e0e0;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.8);
+            position: relative;
+        }
+
+        .modal-content h2 {
+            color: #fff176;
+            margin-bottom: 12px;
+            font-size: 20px;
+        }
+
+        .modal-content p {
+            font-size: 14px;
+            line-height: 1.6;
+            margin-bottom: 14px;
+            color: #cfd8dc;
+        }
+
+        .drop-zone {
+            border: 2px dashed #fbc02d;
+            border-radius: 12px;
+            padding: 28px;
+            text-align: center;
+            background: rgba(251, 192, 45, 0.05);
+            cursor: pointer;
+            transition: all 0.2s;
+            margin: 16px 0;
+        }
+
+        .drop-zone:hover, .drop-zone.dragover {
+            background: rgba(251, 192, 45, 0.15);
+            border-color: #fff59d;
+        }
+
+        .drop-zone span {
+            font-size: 32px;
+            display: block;
+            margin-bottom: 8px;
+        }
+
+        .modal-close {
+            position: absolute;
+            top: 16px;
+            right: 18px;
+            background: none;
+            border: none;
+            color: #aaa;
+            font-size: 24px;
+            cursor: pointer;
+        }
+
+        .modal-close:hover {
+            color: #fff;
+        }
+    </style>
+    <!-- Three.js + OrbitControls + Loaders + Exporter -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/exporters/GLTFExporter.js"></script>
+</head>
+<body>
+    <div id="flash-overlay"></div>
+    <div id="canvas-container"></div>
+
+    <div id="hud">
+        <!-- Top Header -->
+        <div class="header">
+            <div class="title-badge" id="title-badge">
+                <h1 id="char-title">⚡ Zenitsu Agatsuma (我妻 善逸)</h1>
+                <p id="char-sub">Autonomous AI Movable 3D Character • Thunder Breathing Simulator</p>
+            </div>
+
+            <!-- Character Switcher Tabs -->
+            <div class="char-switch-group">
+                <button class="char-tab-btn active zenitsu" id="tab-zenitsu" onclick="selectCharacter('zenitsu')">
+                    ⚡ Zenitsu Agatsuma
+                </button>
+                <button class="char-tab-btn" id="tab-chitanda" onclick="selectCharacter('chitanda')">
+                    🌸 Chitanda Eru
+                </button>
+            </div>
+
+            <div class="top-actions">
+                <!-- AI Autopilot Toggle Button -->
+                <button class="btn-ai" id="btn-ai-toggle" onclick="toggleAIMode()" title="Toggle Autonomous AI Control">
+                    <span class="ai-pulse-dot"></span>
+                    <span id="ai-btn-text">🤖 AI Autopilot: ON</span>
+                </button>
+                <button class="btn btn-outline" onclick="exportCharacterGLB()">💾 Export .GLB</button>
+                <button class="btn btn-outline" onclick="openModal('guide-modal')">📖 2D-to-3D Guide</button>
+                <button class="btn" onclick="openModal('upload-modal')">📂 Import Custom .GLB</button>
+            </div>
+        </div>
+
+        <!-- Bottom Status & Controls -->
+        <div class="bottom-bar">
+            <!-- Controls Legend -->
+            <div class="controls-card" id="controls-card">
+                <!-- Real-time AI Status Badge -->
+                <div class="ai-status-badge" id="ai-status-badge">
+                    <span class="ai-pulse-dot"></span>
+                    <span id="ai-status-text">🎯 AI Brain: Exploring arena autonomously...</span>
+                </div>
+
+                <h3>🎮 Character Controls & AI</h3>
+                <div class="key-hints">
+                    <div class="key-item"><span class="kbd">Tab</span> Toggle AI Autopilot</div>
+                    <div class="key-item"><span class="kbd">W A S D</span> Manual Move (Override)</div>
+                    <div class="key-item"><span class="kbd">Shift</span> Fast Sprint</div>
+                    <div class="key-item"><span class="kbd">Space</span> Jump</div>
+                    <div class="key-item" id="key-action"><span class="kbd">Click / E</span> Special Action</div>
+                    <div class="key-item" id="key-cower"><span class="kbd">C</span> Character Pose</div>
+                </div>
+            </div>
+
+            <!-- Action Buttons for Quick Play -->
+            <div class="action-triggers">
+                <button class="action-btn" id="btn-primary-action" onclick="triggerSpecialAction()">⚡ Special Action</button>
+                <button class="action-btn" id="btn-secondary-action" onclick="triggerAltAction()">😱 Special Pose</button>
+                <button class="action-btn" onclick="aiBrain.pickNewTarget()">🎯 Next AI Goal</button>
+                <button class="action-btn" onclick="resetPosition()">📍 Reset Center</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Upload Modal -->
+    <div id="upload-modal" class="modal">
+        <div class="modal-content">
+            <button class="modal-close" onclick="closeModal('upload-modal')">&times;</button>
+            <h2>Import 3D Character Model</h2>
+            <p>Drop any .GLB / .GLTF character file here to replace the active model. The autonomous AI will drive it immediately!</p>
+            <div class="drop-zone" id="drop-zone" onclick="document.getElementById('file-input').click()">
+                <span>🤖</span>
+                <strong>Click to Browse or Drag & Drop</strong>
+                <p style="font-size: 12px; color: #aaa; margin-top: 6px;">Supports .glb and .gltf humanoid files</p>
+            </div>
+            <input type="file" id="file-input" accept=".glb,.gltf" style="display: none;" onchange="handleFileSelect(event)">
+        </div>
+    </div>
+
+    <!-- Guide Modal -->
+    <div id="guide-modal" class="modal">
+        <div class="modal-content">
+            <button class="modal-close" onclick="closeModal('guide-modal')">&times;</button>
+            <h2>Autonomous AI Character System</h2>
+            <p>How the AI independently moves and animates your 3D characters:</p>
+            <ol style="margin-left: 20px; font-size: 13px; line-height: 1.8; color: #cfd8dc;">
+                <li><strong>Autonomous Navigation:</strong> The AI brain selects target landmarks (Torii gates, center arena, waypoints) and calculates smooth kinematic steering angles.</li>
+                <li><strong>Personality-Driven Actions:</strong>
+                    <br>• <strong>Zenitsu AI:</strong> Wanders cautiously, sprints with lightning dashes, and occasionally gets startled/cowering.
+                    <br>• <strong>Chitanda AI:</strong> Inquisitively explores, skips, stops to examine landmarks, and triggers <em>"Watashi, Kininarimasu!"</em> curiosity flower blooms!
+                </li>
+                <li><strong>Manual Takeover:</strong> Press any movement key (<kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd>) to instantly take manual control, or press <kbd>Tab</kbd> to let the AI resume autopilot!</li>
+            </ol>
+            <div style="margin-top: 16px; text-align: right;">
+                <button class="btn" onclick="closeModal('guide-modal')">Got it!</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        /* -------------------------------------------------------------
+           SCENE, CAMERA, RENDERER
+        ------------------------------------------------------------- */
+        const container = document.getElementById('canvas-container');
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x0e1118);
+        scene.fog = new THREE.FogExp2(0x0e1118, 0.025);
+
+        const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.set(0, 3.2, 6.5);
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        renderer.toneMapping = THREE.ACESFilmicToneMapping;
+        renderer.toneMappingExposure = 1.1;
+        container.appendChild(renderer.domElement);
+
+        const controls = new THREE.OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.05;
+        controls.maxPolarAngle = Math.PI / 2 - 0.05;
+        controls.minDistance = 2;
+        controls.maxDistance = 22;
+        controls.target.set(0, 1.2, 0);
+
+        /* -------------------------------------------------------------
+           LIGHTING
+        ------------------------------------------------------------- */
+        const hemiLight = new THREE.HemisphereLight(0xfffaed, 0x1f2438, 0.95);
+        scene.add(hemiLight);
+
+        const sunLight = new THREE.DirectionalLight(0xfff5e6, 1.4);
+        sunLight.position.set(10, 20, 10);
+        sunLight.castShadow = true;
+        sunLight.shadow.mapSize.width = 2048;
+        sunLight.shadow.mapSize.height = 2048;
+        sunLight.shadow.bias = -0.0005;
+        scene.add(sunLight);
+
+        const auraLight = new THREE.PointLight(0xffe066, 0, 30);
+        auraLight.position.set(0, 2, 0);
+        scene.add(auraLight);
+
+        /* -------------------------------------------------------------
+           ENVIRONMENT
+        ------------------------------------------------------------- */
+        const ground = new THREE.Mesh(
+            new THREE.CylinderGeometry(25, 25, 0.5, 48),
+            new THREE.MeshStandardMaterial({ color: 0x1b1e28, roughness: 0.85, metalness: 0.1 })
+        );
+        ground.position.y = -0.25;
+        ground.receiveShadow = true;
+        scene.add(ground);
+
+        const gridHelper = new THREE.GridHelper(50, 50, 0xfbc02d, 0x272c3d);
+        gridHelper.position.y = 0.01;
+        scene.add(gridHelper);
+
+        // Landmarks for AI navigation
+        function createToriiGate(x, z, rot) {
+            const group = new THREE.Group();
+            const pillarMat = new THREE.MeshStandardMaterial({ color: 0xb71c1c, roughness: 0.4 });
+            const topMat = new THREE.MeshStandardMaterial({ color: 0x1a1a1a, roughness: 0.3 });
+
+            const p1 = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.25, 5, 16), pillarMat);
+            p1.position.set(-2, 2.5, 0);
+            p1.castShadow = true;
+            const p2 = p1.clone();
+            p2.position.set(2, 2.5, 0);
+
+            const beam1 = new THREE.Mesh(new THREE.BoxGeometry(5.4, 0.4, 0.4), pillarMat);
+            beam1.position.set(0, 4.4, 0);
+            beam1.castShadow = true;
+
+            const beamTop = new THREE.Mesh(new THREE.BoxGeometry(6.2, 0.5, 0.6), topMat);
+            beamTop.position.set(0, 5.0, 0);
+            beamTop.castShadow = true;
+
+            group.add(p1, p2, beam1, beamTop);
+            group.position.set(x, 0, z);
+            group.rotation.y = rot;
+            return group;
+        }
+        scene.add(createToriiGate(0, -12, 0));
+        scene.add(createToriiGate(-14, 0, Math.PI / 2));
+        scene.add(createToriiGate(14, 0, -Math.PI / 2));
+
+        /* -------------------------------------------------------------
+           CHARACTER RIG ROOT
+        ------------------------------------------------------------- */
+        const characterRoot = new THREE.Group();
+        scene.add(characterRoot);
+
+        let activeCharacter = 'zenitsu';
+        let joints = {};
+
+        function clearCharacter() {
+            while (characterRoot.children.length > 0) {
+                characterRoot.remove(characterRoot.children[0]);
+            }
+            joints = {};
+        }
+
+        /* 1. BUILD ZENITSU */
+        function buildZenitsu() {
+            clearCharacter();
+            const canvas = document.createElement('canvas');
+            canvas.width = 256; canvas.height = 256;
+            const ctx = canvas.getContext('2d');
+            const grad = ctx.createLinearGradient(0, 0, 0, 256);
+            grad.addColorStop(0, '#ffeb3b');
+            grad.addColorStop(0.7, '#fbc02d');
+            grad.addColorStop(1, '#ff6f00');
+            ctx.fillStyle = grad;
+            ctx.fillRect(0, 0, 256, 256);
+            ctx.fillStyle = '#ffffff';
+            const size = 32;
+            for (let y = 0; y < 256; y += size) {
+                for (let x = 0; x < 256; x += size) {
+                    ctx.beginPath();
+                    ctx.moveTo(x + size / 2, y + 4);
+                    ctx.lineTo(x + size - 4, y + size - 4);
+                    ctx.lineTo(x + 4, y + size - 4);
+                    ctx.closePath();
+                    ctx.fill();
+                }
+            }
+            const haoriTexture = new THREE.CanvasTexture(canvas);
+            haoriTexture.wrapS = haoriTexture.wrapT = THREE.RepeatWrapping;
+            haoriTexture.repeat.set(2, 2);
+
+            const skinMat = new THREE.MeshToonMaterial({ color: 0xffdfc4 });
+            const uniformMat = new THREE.MeshToonMaterial({ color: 0x1a1a24 });
+            const haoriMat = new THREE.MeshToonMaterial({ map: haoriTexture });
+            const hairYellowMat = new THREE.MeshToonMaterial({ color: 0xffea00 });
+            const hairOrangeMat = new THREE.MeshToonMaterial({ color: 0xff6d00 });
+            const eyeMat = new THREE.MeshBasicMaterial({ color: 0x4e2608 });
+            const whiteMat = new THREE.MeshToonMaterial({ color: 0xffffff });
+            const bladeMat = new THREE.MeshStandardMaterial({ color: 0xdde7f0, metalness: 0.9, roughness: 0.2 });
+            const goldMat = new THREE.MeshStandardMaterial({ color: 0xffd54f, metalness: 0.6, roughness: 0.3 });
+
+            const hips = new THREE.Group();
+            hips.position.y = 0.9;
+            characterRoot.add(hips);
+            joints.hips = hips;
+
+            const spine = new THREE.Group();
+            hips.add(spine);
+            joints.spine = spine;
+
+            const torso = new THREE.Mesh(new THREE.CylinderGeometry(0.24, 0.22, 0.5, 12), uniformMat);
+            torso.position.y = 0.25;
+            torso.castShadow = true;
+            spine.add(torso);
+
+            const haori = new THREE.Mesh(new THREE.CylinderGeometry(0.29, 0.36, 0.65, 16, 1, true), haoriMat);
+            haori.position.y = 0.22;
+            haori.castShadow = true;
+            spine.add(haori);
+
+            const belt = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.25, 0.08, 12), whiteMat);
+            belt.position.y = 0.05;
+            spine.add(belt);
+
+            const neck = new THREE.Group();
+            neck.position.y = 0.55;
+            spine.add(neck);
+
+            const head = new THREE.Group();
+            head.position.y = 0.2;
+            neck.add(head);
+            joints.head = head;
+
+            const headMesh = new THREE.Mesh(new THREE.SphereGeometry(0.24, 20, 20), skinMat);
+            headMesh.scale.set(0.9, 1.05, 0.95);
+            headMesh.castShadow = true;
+            head.add(headMesh);
+
+            const eyeL = new THREE.Mesh(new THREE.PlaneGeometry(0.06, 0.07), eyeMat);
+            eyeL.position.set(-0.08, 0.03, 0.22);
+            eyeL.rotation.y = 0.2;
+            const eyeR = eyeL.clone();
+            eyeR.position.set(0.08, 0.03, 0.22);
+            eyeR.rotation.y = -0.2;
+            head.add(eyeL, eyeR);
+
+            const hairBase = new THREE.Group();
+            head.add(hairBase);
+            const spikeGeo = new THREE.ConeGeometry(0.09, 0.32, 4);
+            spikeGeo.rotateX(Math.PI);
+
+            for (let i = 0; i < 18; i++) {
+                const angle = (i / 18) * Math.PI * 1.8 - Math.PI * 0.9;
+                const spike = new THREE.Mesh(spikeGeo, i % 2 === 0 ? hairYellowMat : hairOrangeMat);
+                spike.position.set(Math.sin(angle) * 0.24, 0.12 - Math.abs(angle) * 0.05, Math.cos(angle) * 0.22);
+                spike.rotation.z = -angle * 0.6;
+                spike.rotation.x = 0.2;
+                spike.castShadow = true;
+                hairBase.add(spike);
+            }
+
+            const hairTop = new THREE.Mesh(new THREE.SphereGeometry(0.27, 16, 12), hairYellowMat);
+            hairTop.position.set(0, 0.12, -0.04);
+            hairBase.add(hairTop);
+
+            const hairTips = new THREE.Mesh(new THREE.SphereGeometry(0.28, 16, 8, 0, Math.PI * 2, 0.8, 1.2), hairOrangeMat);
+            hairTips.position.set(0, 0.02, -0.03);
+            hairBase.add(hairTips);
+
+            function buildArm(isLeft) {
+                const sign = isLeft ? -1 : 1;
+                const shoulder = new THREE.Group();
+                shoulder.position.set(sign * 0.32, 0.45, 0);
+                spine.add(shoulder);
+
+                const sleeve = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.18, 0.32, 10), haoriMat);
+                sleeve.position.y = -0.12;
+                sleeve.castShadow = true;
+                shoulder.add(sleeve);
+
+                const elbow = new THREE.Group();
+                elbow.position.y = -0.3;
+                shoulder.add(elbow);
+
+                const forearm = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.07, 0.28, 10), uniformMat);
+                forearm.position.y = -0.12;
+                forearm.castShadow = true;
+                elbow.add(forearm);
+
+                const hand = new THREE.Mesh(new THREE.SphereGeometry(0.07, 10, 10), skinMat);
+                hand.position.y = -0.28;
+                elbow.add(hand);
+
+                return { shoulder, elbow, hand };
+            }
+
+            joints.leftArm = buildArm(true);
+            joints.rightArm = buildArm(false);
+
+            function buildLeg(isLeft) {
+                const sign = isLeft ? -1 : 1;
+                const hipJoint = new THREE.Group();
+                hipJoint.position.set(sign * 0.15, 0, 0);
+                hips.add(hipJoint);
+
+                const thigh = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.11, 0.42, 10), uniformMat);
+                thigh.position.y = -0.2;
+                thigh.castShadow = true;
+                hipJoint.add(thigh);
+
+                const knee = new THREE.Group();
+                knee.position.y = -0.42;
+                hipJoint.add(knee);
+
+                const shin = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.08, 0.4, 10), haoriMat);
+                shin.position.y = -0.18;
+                shin.castShadow = true;
+                knee.add(shin);
+
+                const foot = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.08, 0.22), whiteMat);
+                foot.position.set(0, -0.42, 0.04);
+                foot.castShadow = true;
+                knee.add(foot);
+
+                return { hipJoint, knee, foot };
+            }
+
+            joints.leftLeg = buildLeg(true);
+            joints.rightLeg = buildLeg(false);
+
+            const katanaGroup = new THREE.Group();
+            katanaGroup.position.set(0.24, 0.1, 0);
+            katanaGroup.rotation.z = -0.4;
+            katanaGroup.rotation.x = 0.2;
+            spine.add(katanaGroup);
+
+            const scabbard = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.85, 0.06), haoriMat);
+            scabbard.position.y = -0.3;
+            katanaGroup.add(scabbard);
+
+            const bladeGroup = new THREE.Group();
+            bladeGroup.position.set(0, -0.1, 0);
+            bladeGroup.rotation.x = Math.PI / 2;
+            bladeGroup.visible = false;
+            joints.rightArm.hand.add(bladeGroup);
+            joints.bladeGroup = bladeGroup;
+
+            const tsuba = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.09, 0.02, 8), goldMat);
+            bladeGroup.add(tsuba);
+
+            const hilt = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.26, 8), haoriMat);
+            hilt.position.y = -0.14;
+            bladeGroup.add(hilt);
+
+            const blade = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.95, 0.05), bladeMat);
+            blade.position.set(0, 0.5, 0);
+            blade.castShadow = true;
+            bladeGroup.add(blade);
+        }
+
+        /* 2. BUILD CHITANDA ERU */
+        function buildChitanda() {
+            clearCharacter();
+
+            const skinMat = new THREE.MeshToonMaterial({ color: 0xffe5d9 });
+            const darkHairMat = new THREE.MeshToonMaterial({ color: 0x181824 });
+            const violetEyeMat = new THREE.MeshBasicMaterial({ color: 0x9c27b0 });
+            const whiteMat = new THREE.MeshToonMaterial({ color: 0xfafafa });
+            const navyMat = new THREE.MeshToonMaterial({ color: 0x161c2d });
+            const ribbonMat = new THREE.MeshToonMaterial({ color: 0x00acc1 });
+            const blackSockMat = new THREE.MeshToonMaterial({ color: 0x1a1a20 });
+            const brownLoaferMat = new THREE.MeshStandardMaterial({ color: 0x4a2c1d, roughness: 0.4 });
+
+            const hips = new THREE.Group();
+            hips.position.y = 0.9;
+            characterRoot.add(hips);
+            joints.hips = hips;
+
+            const spine = new THREE.Group();
+            hips.add(spine);
+            joints.spine = spine;
+
+            const torso = new THREE.Mesh(new THREE.CylinderGeometry(0.20, 0.18, 0.45, 14), whiteMat);
+            torso.position.y = 0.25;
+            torso.castShadow = true;
+            spine.add(torso);
+
+            const collarFlap = new THREE.Mesh(new THREE.BoxGeometry(0.36, 0.05, 0.26), navyMat);
+            collarFlap.position.set(0, 0.44, -0.06);
+            collarFlap.castShadow = true;
+            spine.add(collarFlap);
+
+            const ribbon = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.14, 0.05), ribbonMat);
+            ribbon.position.set(0, 0.35, 0.17);
+            spine.add(ribbon);
+
+            const skirt = new THREE.Mesh(new THREE.CylinderGeometry(0.19, 0.33, 0.34, 18), navyMat);
+            skirt.position.y = -0.04;
+            skirt.castShadow = true;
+            hips.add(skirt);
+
+            const neck = new THREE.Group();
+            neck.position.y = 0.52;
+            spine.add(neck);
+
+            const head = new THREE.Group();
+            head.position.y = 0.19;
+            neck.add(head);
+            joints.head = head;
+
+            const headMesh = new THREE.Mesh(new THREE.SphereGeometry(0.22, 20, 20), skinMat);
+            headMesh.scale.set(0.9, 1.05, 0.95);
+            headMesh.castShadow = true;
+            head.add(headMesh);
+
+            const eyeL = new THREE.Mesh(new THREE.PlaneGeometry(0.06, 0.08), violetEyeMat);
+            eyeL.position.set(-0.075, 0.03, 0.205);
+            eyeL.rotation.y = 0.18;
+            const eyeR = eyeL.clone();
+            eyeR.position.set(0.075, 0.03, 0.205);
+            eyeR.rotation.y = -0.18;
+
+            const glint = new THREE.Mesh(new THREE.PlaneGeometry(0.02, 0.02), whiteMat);
+            glint.position.set(-0.065, 0.05, 0.21);
+            const glint2 = glint.clone();
+            glint2.position.set(0.085, 0.05, 0.21);
+            head.add(eyeL, eyeR, glint, glint2);
+
+            const hairBase = new THREE.Group();
+            head.add(hairBase);
+
+            const scalp = new THREE.Mesh(new THREE.SphereGeometry(0.25, 16, 16), darkHairMat);
+            scalp.position.set(0, 0.05, -0.04);
+            scalp.scale.set(1.0, 1.02, 1.02);
+            hairBase.add(scalp);
+
+            const bangs = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.14, 0.07), darkHairMat);
+            bangs.position.set(0, 0.13, 0.17);
+            bangs.rotation.x = 0.15;
+            hairBase.add(bangs);
+
+            const sideHairL = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.38, 0.09), darkHairMat);
+            sideHairL.position.set(-0.19, -0.08, 0.10);
+            sideHairL.rotation.z = -0.1;
+            const sideHairR = sideHairL.clone();
+            sideHairR.position.set(0.19, -0.08, 0.10);
+            sideHairR.rotation.z = 0.1;
+            hairBase.add(sideHairL, sideHairR);
+
+            const backHair = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.75, 0.10), darkHairMat);
+            backHair.position.set(0, -0.28, -0.18);
+            backHair.rotation.x = -0.1;
+            backHair.castShadow = true;
+            hairBase.add(backHair);
+
+            const backHairLower = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.45, 0.08), darkHairMat);
+            backHairLower.position.set(0, -0.68, -0.22);
+            backHairLower.castShadow = true;
+            hairBase.add(backHairLower);
+
+            function buildChitandaArm(isLeft) {
+                const sign = isLeft ? -1 : 1;
+                const shoulder = new THREE.Group();
+                shoulder.position.set(sign * 0.28, 0.42, 0);
+                spine.add(shoulder);
+
+                const sleeve = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.08, 0.22, 10), whiteMat);
+                sleeve.position.y = -0.08;
+                sleeve.castShadow = true;
+                shoulder.add(sleeve);
+
+                const elbow = new THREE.Group();
+                elbow.position.y = -0.25;
+                shoulder.add(elbow);
+
+                const forearm = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.055, 0.26, 10), skinMat);
+                forearm.position.y = -0.12;
+                forearm.castShadow = true;
+                elbow.add(forearm);
+
+                const hand = new THREE.Mesh(new THREE.SphereGeometry(0.055, 8, 8), skinMat);
+                hand.position.y = -0.26;
+                elbow.add(hand);
+
+                return { shoulder, elbow, hand };
+            }
+
+            joints.leftArm = buildChitandaArm(true);
+            joints.rightArm = buildChitandaArm(false);
+
+            function buildChitandaLeg(isLeft) {
+                const sign = isLeft ? -1 : 1;
+                const hipJoint = new THREE.Group();
+                hipJoint.position.set(sign * 0.12, 0, 0);
+                hips.add(hipJoint);
+
+                const thigh = new THREE.Mesh(new THREE.CylinderGeometry(0.085, 0.075, 0.24, 10), skinMat);
+                thigh.position.y = -0.12;
+                thigh.castShadow = true;
+                hipJoint.add(thigh);
+
+                const knee = new THREE.Group();
+                knee.position.y = -0.26;
+                hipJoint.add(knee);
+
+                const sock = new THREE.Mesh(new THREE.CylinderGeometry(0.075, 0.065, 0.42, 10), blackSockMat);
+                sock.position.y = -0.20;
+                sock.castShadow = true;
+                knee.add(sock);
+
+                const loafer = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.07, 0.20), brownLoaferMat);
+                loafer.position.set(0, -0.42, 0.04);
+                loafer.castShadow = true;
+                knee.add(loafer);
+
+                return { hipJoint, knee, foot: loafer };
+            }
+
+            joints.leftLeg = buildChitandaLeg(true);
+            joints.rightLeg = buildChitandaLeg(false);
+        }
+
+        /* -------------------------------------------------------------
+           CHARACTER SWITCHER
+        ------------------------------------------------------------- */
+        function selectCharacter(charKey) {
+            activeCharacter = charKey;
+
+            const tabZenitsu = document.getElementById('tab-zenitsu');
+            const tabChitanda = document.getElementById('tab-chitanda');
+            const titleBadge = document.getElementById('title-badge');
+            const controlsCard = document.getElementById('controls-card');
+            const charTitle = document.getElementById('char-title');
+            const charSub = document.getElementById('char-sub');
+            const keyAction = document.getElementById('key-action');
+            const keyCower = document.getElementById('key-cower');
+            const btnPrimary = document.getElementById('btn-primary-action');
+            const btnSecondary = document.getElementById('btn-secondary-action');
+
+            if (charKey === 'zenitsu') {
+                tabZenitsu.className = 'char-tab-btn active zenitsu';
+                tabChitanda.className = 'char-tab-btn';
+                titleBadge.classList.remove('chitanda-theme');
+                controlsCard.classList.remove('chitanda-theme');
+
+                charTitle.innerHTML = '⚡ Zenitsu Agatsuma (我妻 善逸)';
+                charSub.innerHTML = 'Autonomous AI Movable 3D Character • Thunder Breathing Simulator';
+                keyAction.innerHTML = '<span class="kbd">Click / E</span> Thunderclap Strike';
+                keyCower.innerHTML = '<span class="kbd">C</span> Scared / Cower Pose';
+                btnPrimary.innerHTML = '⚡ First Form (Slash)';
+                btnPrimary.className = 'action-btn';
+                btnSecondary.innerHTML = '😱 Scared Pose';
+                btnSecondary.className = 'action-btn';
+
+                gridHelper.material.color.setHex(0xfbc02d);
+                buildZenitsu();
+                updateParticleColors(false);
+            } else {
+                tabZenitsu.className = 'char-tab-btn';
+                tabChitanda.className = 'char-tab-btn active chitanda';
+                titleBadge.classList.add('chitanda-theme');
+                controlsCard.classList.add('chitanda-theme');
+
+                charTitle.innerHTML = '🌸 Chitanda Eru (千反田 える)';
+                charSub.innerHTML = 'Autonomous AI Movable 3D Character • "Watashi, Kininarimasu!"';
+                keyAction.innerHTML = '<span class="kbd">Click / E</span> "I\'m Curious!" (Kininarimasu)';
+                keyCower.innerHTML = '<span class="kbd">C</span> Polite Bow / Greeting';
+                btnPrimary.innerHTML = '🌸 "I\'m Curious!"';
+                btnPrimary.className = 'action-btn chitanda-btn';
+                btnSecondary.innerHTML = '🎀 Polite Bow';
+                btnSecondary.className = 'action-btn chitanda-btn';
+
+                gridHelper.material.color.setHex(0xba68c8);
+                buildChitanda();
+                updateParticleColors(true);
+            }
+
+            aiBrain.pickNewTarget();
+        }
+
+        /* -------------------------------------------------------------
+           PARTICLES
+        ------------------------------------------------------------- */
+        const maxParticles = 250;
+        const particlePositions = new Float32Array(maxParticles * 3);
+        const particleColors = new Float32Array(maxParticles * 3);
+
+        function updateParticleColors(isChitanda) {
+            for (let i = 0; i < maxParticles; i++) {
+                particlePositions[i * 3] = (Math.random() - 0.5) * 4;
+                particlePositions[i * 3 + 1] = Math.random() * 3;
+                particlePositions[i * 3 + 2] = (Math.random() - 0.5) * 4;
+
+                if (isChitanda) {
+                    if (Math.random() > 0.5) {
+                        particleColors[i * 3] = 0.85;
+                        particleColors[i * 3 + 1] = 0.45;
+                        particleColors[i * 3 + 2] = 0.95;
+                    } else {
+                        particleColors[i * 3] = 0.98;
+                        particleColors[i * 3 + 1] = 0.65;
+                        particleColors[i * 3 + 2] = 0.80;
+                    }
+                } else {
+                    if (Math.random() > 0.3) {
+                        particleColors[i * 3] = 1.0;
+                        particleColors[i * 3 + 1] = 0.9;
+                        particleColors[i * 3 + 2] = 0.1;
+                    } else {
+                        particleColors[i * 3] = 0.1;
+                        particleColors[i * 3 + 1] = 0.9;
+                        particleColors[i * 3 + 2] = 1.0;
+                    }
+                }
+            }
+            particleGeo.attributes.position.needsUpdate = true;
+            particleGeo.attributes.color.needsUpdate = true;
+        }
+
+        const particleGeo = new THREE.BufferGeometry();
+        particleGeo.setAttribute('position', new THREE.BufferAttribute(particlePositions, 3));
+        particleGeo.setAttribute('color', new THREE.BufferAttribute(particleColors, 3));
+
+        const particleMat = new THREE.PointsMaterial({
+            size: 0.18,
+            vertexColors: true,
+            transparent: true,
+            opacity: 0,
+            blending: THREE.AdditiveBlending
+        });
+        const particleSystem = new THREE.Points(particleGeo, particleMat);
+        scene.add(particleSystem);
+
+        // Initial setup for Chitanda Eru
+        selectCharacter('chitanda');
+
+        /* -------------------------------------------------------------
+           CONTROLLER STATE
+        ------------------------------------------------------------- */
+        const keys = { forward: false, backward: false, left: false, right: false, sprint: false };
+        const charState = {
+            pos: new THREE.Vector3(0, 0, 0),
+            vel: new THREE.Vector3(0, 0, 0),
+            rotation: 0,
+            targetRotation: 0,
+            isGrounded: true,
+            isSpecialAction: false,
+            specialTimer: 0,
+            isAltPose: false,
+            altTimer: 0,
+            walkCycle: 0
+        };
+
+        /* -------------------------------------------------------------
+           🤖 AUTONOMOUS AI BRAIN (MOVES BY ITSELF WITHOUT HUMAN INPUT)
+        ------------------------------------------------------------- */
+        const aiBrain = {
+            enabled: true, // ON by default!
+            state: 'ROAMING', // 'ROAMING', 'OBSERVING', 'SPECIAL_ACTION', 'ALT_POSE'
+            stateTimer: 0,
+            targetPos: new THREE.Vector3(0, 0, 0),
+            speed: 1.0,
+            statusText: '🎯 AI Brain: Exploring arena autonomously...',
+
+            pickNewTarget() {
+                const landmarks = [
+                    new THREE.Vector3(0, 0, -11),  // North Torii Gate
+                    new THREE.Vector3(-12.5, 0, 0),// West Torii Gate
+                    new THREE.Vector3(12.5, 0, 0), // East Torii Gate
+                    new THREE.Vector3(0, 0, 0),    // Center Arena
+                    new THREE.Vector3(6, 0, 6),
+                    new THREE.Vector3(-6, 0, -6),
+                    new THREE.Vector3(7, 0, -6),
+                    new THREE.Vector3(-7, 0, 6)
+                ];
+
+                if (Math.random() > 0.4) {
+                    const lm = landmarks[Math.floor(Math.random() * landmarks.length)];
+                    this.targetPos.copy(lm).add(new THREE.Vector3((Math.random() - 0.5) * 3, 0, (Math.random() - 0.5) * 3));
+                } else {
+                    const rad = 2 + Math.random() * 13;
+                    const ang = Math.random() * Math.PI * 2;
+                    this.targetPos.set(Math.cos(ang) * rad, 0, Math.sin(ang) * rad);
+                }
+
+                this.state = 'ROAMING';
+                this.stateTimer = 8 + Math.random() * 6;
+                this.speed = Math.random() > 0.65 ? 1.9 : 1.0; // Random fast sprint
+                
+                if (this.speed > 1.2) {
+                    this.statusText = activeCharacter === 'zenitsu' ? '⚡ AI Sprinting with lightning aura...' : '🌸 AI Skipping happily to landmark...';
+                } else {
+                    this.statusText = '🚶 AI Exploring arena destination...';
+                }
+            },
+
+            update(delta) {
+                if (!this.enabled) return;
+
+                this.stateTimer -= delta;
+
+                if (this.state === 'ROAMING') {
+                    const toTarget = new THREE.Vector3().subVectors(this.targetPos, charState.pos);
+                    toTarget.y = 0;
+                    const dist = toTarget.length();
+
+                    if (dist < 1.3 || this.stateTimer <= 0) {
+                        const roll = Math.random();
+                        if (roll < 0.4) {
+                            // Autonomous Special Action
+                            this.state = 'SPECIAL_ACTION';
+                            this.stateTimer = 2.2;
+                            this.statusText = activeCharacter === 'chitanda' 
+                                ? '🌸 AI: "Watashi, Kininarimasu!" (Curiosity Bloom)' 
+                                : '⚡ AI: Thunder Breathing First Form Strike!';
+                            triggerSpecialAction();
+                        } else if (roll < 0.7) {
+                            // Autonomous Alt Pose
+                            this.state = 'ALT_POSE';
+                            this.stateTimer = 3.0;
+                            this.statusText = activeCharacter === 'chitanda' 
+                                ? '🎀 AI: Polite greeting bow...' 
+                                : '😱 AI: Startled / Cowering!';
+                            triggerAltAction();
+                        } else {
+                            // Autonomous Observation Pause
+                            this.state = 'OBSERVING';
+                            this.stateTimer = 2.5 + Math.random() * 2.5;
+                            this.statusText = '👀 AI: Observing surroundings & landmarks...';
+                        }
+                    } else {
+                        // Smooth Kinematic Steer towards target
+                        toTarget.normalize();
+                        charState.targetRotation = Math.atan2(toTarget.x, toTarget.z);
+
+                        const accel = this.speed > 1.2 ? 28 : 17;
+                        charState.vel.x += toTarget.x * accel * delta;
+                        charState.vel.z += toTarget.z * accel * delta;
+                        charState.walkCycle += delta * (this.speed > 1.2 ? 14 : 8);
+
+                        // Occasional natural jump
+                        if (Math.random() < 0.004 && charState.isGrounded) {
+                            charState.vel.y = 8.5;
+                            charState.isGrounded = false;
+                        }
+                    }
+                } else if (this.state === 'OBSERVING' || this.state === 'SPECIAL_ACTION' || this.state === 'ALT_POSE') {
+                    if (this.stateTimer <= 0) {
+                        this.pickNewTarget();
+                    }
+                }
+
+                // Update HUD label
+                const statusEl = document.getElementById('ai-status-text');
+                if (statusEl) statusEl.textContent = this.statusText;
+            }
+        };
+
+        // Initialize AI
+        aiBrain.pickNewTarget();
+
+        /* Toggle AI Autopilot on/off */
+        function toggleAIMode() {
+            aiBrain.enabled = !aiBrain.enabled;
+            const btn = document.getElementById('btn-ai-toggle');
+            const btnText = document.getElementById('ai-btn-text');
+            const badge = document.getElementById('ai-status-badge');
+            const statusText = document.getElementById('ai-status-text');
+
+            if (aiBrain.enabled) {
+                btn.className = 'btn-ai';
+                btnText.textContent = '🤖 AI Autopilot: ON';
+                badge.className = 'ai-status-badge';
+                aiBrain.pickNewTarget();
+            } else {
+                btn.className = 'btn-ai manual';
+                btnText.textContent = '🎮 Manual Control: ON';
+                badge.className = 'ai-status-badge manual';
+                statusText.textContent = '🎮 Player Manual Mode active (Use WASD / Click)';
+            }
+        }
+
+        /* -------------------------------------------------------------
+           KEYBOARD INPUT & MANUAL TAKEOVER
+        ------------------------------------------------------------- */
+        window.addEventListener('keydown', (e) => {
+            if (e.repeat) return;
+            switch (e.code) {
+                case 'Tab':
+                    e.preventDefault();
+                    toggleAIMode();
+                    break;
+                case 'KeyW': case 'ArrowUp':
+                    keys.forward = true;
+                    if (aiBrain.enabled) setManualOverride();
+                    break;
+                case 'KeyS': case 'ArrowDown':
+                    keys.backward = true;
+                    if (aiBrain.enabled) setManualOverride();
+                    break;
+                case 'KeyA': case 'ArrowLeft':
+                    keys.left = true;
+                    if (aiBrain.enabled) setManualOverride();
+                    break;
+                case 'KeyD': case 'ArrowRight':
+                    keys.right = true;
+                    if (aiBrain.enabled) setManualOverride();
+                    break;
+                case 'ShiftLeft': case 'ShiftRight': keys.sprint = true; break;
+                case 'Space':
+                    if (charState.isGrounded && !charState.isSpecialAction) {
+                        charState.vel.y = 8.5;
+                        charState.isGrounded = false;
+                    }
+                    break;
+                case 'KeyE': triggerSpecialAction(); break;
+                case 'KeyC': triggerAltAction(); break;
+            }
+        });
+
+        function setManualOverride() {
+            // Temporary manual override notice
+            const statusText = document.getElementById('ai-status-text');
+            if (statusText) statusText.textContent = '🎮 Manual Player Control (Press Tab for AI Autopilot)';
+        }
+
+        window.addEventListener('keyup', (e) => {
+            switch (e.code) {
+                case 'KeyW': case 'ArrowUp': keys.forward = false; break;
+                case 'KeyS': case 'ArrowDown': keys.backward = false; break;
+                case 'KeyA': case 'ArrowLeft': keys.left = false; break;
+                case 'KeyD': case 'ArrowRight': keys.right = false; break;
+                case 'ShiftLeft': case 'ShiftRight': keys.sprint = false; break;
+            }
+        });
+
+        window.addEventListener('click', (e) => {
+            if (e.target.closest('#hud') || e.target.closest('.modal')) return;
+            triggerSpecialAction();
+        });
+
+        function triggerSpecialAction() {
+            if (charState.isSpecialAction) return;
+            charState.isSpecialAction = true;
+            charState.specialTimer = 0.9;
+            charState.isAltPose = false;
+
+            const flash = document.getElementById('flash-overlay');
+            if (activeCharacter === 'chitanda') {
+                flash.style.background = '#f8bbd0';
+                flash.style.opacity = '0.5';
+                auraLight.color.setHex(0xba68c8);
+            } else {
+                flash.style.background = '#ffffff';
+                flash.style.opacity = '0.9';
+                auraLight.color.setHex(0xffe066);
+                if (joints.bladeGroup) joints.bladeGroup.visible = true;
+            }
+            setTimeout(() => { flash.style.opacity = '0'; }, 100);
+
+            auraLight.position.copy(characterRoot.position).add(new THREE.Vector3(0, 1.5, 0));
+            auraLight.intensity = 5;
+
+            const forwardDir = new THREE.Vector3(0, 0, 1).applyAxisAngle(new THREE.Vector3(0, 1, 0), charState.rotation);
+            charState.vel.add(forwardDir.multiplyScalar(activeCharacter === 'chitanda' ? 6 : 14));
+            particleMat.opacity = 1.0;
+        }
+
+        function triggerAltAction() {
+            charState.isAltPose = true;
+            charState.altTimer = 3.5;
+            charState.isSpecialAction = false;
+            if (joints.bladeGroup) joints.bladeGroup.visible = false;
+        }
+
+        function resetPosition() {
+            charState.pos.set(0, 0, 0);
+            charState.vel.set(0, 0, 0);
+            characterRoot.position.set(0, 0, 0);
+            controls.target.set(0, 1.2, 0);
+            aiBrain.pickNewTarget();
+        }
+
+        /* -------------------------------------------------------------
+           MAIN ANIMATION & SIMULATION LOOP
+        ------------------------------------------------------------- */
+        const clock = new THREE.Clock();
+
+        function animateCharacter(delta) {
+            const isManualMoving = keys.forward || keys.backward || keys.left || keys.right;
+
+            // Update autonomous AI if active and no manual override
+            if (aiBrain.enabled && !isManualMoving) {
+                aiBrain.update(delta);
+            }
+
+            if (charState.isSpecialAction) {
+                charState.specialTimer -= delta;
+                if (charState.specialTimer <= 0) {
+                    charState.isSpecialAction = false;
+                    if (joints.bladeGroup) joints.bladeGroup.visible = false;
+                }
+            }
+
+            if (charState.isAltPose) {
+                charState.altTimer -= delta;
+                if (charState.altTimer <= 0) charState.isAltPose = false;
+            }
+
+            // Manual steering when keys are pressed
+            if (isManualMoving && !charState.isSpecialAction) {
+                const moveDir = new THREE.Vector3();
+                if (keys.forward) moveDir.z += 1;
+                if (keys.backward) moveDir.z -= 1;
+                if (keys.left) moveDir.x += 1;
+                if (keys.right) moveDir.x -= 1;
+                moveDir.normalize();
+
+                const camAngle = Math.atan2(
+                    camera.position.x - controls.target.x,
+                    camera.position.z - controls.target.z
+                );
+                moveDir.applyAxisAngle(new THREE.Vector3(0, 1, 0), camAngle);
+                charState.targetRotation = Math.atan2(moveDir.x, moveDir.z);
+
+                const accel = keys.sprint ? 30 : 18;
+                charState.vel.x += moveDir.x * accel * delta;
+                charState.vel.z += moveDir.z * accel * delta;
+                charState.walkCycle += delta * (keys.sprint ? 14 : 8);
+            } else if (!charState.isSpecialAction && !aiBrain.enabled) {
+                charState.walkCycle += delta * 2;
+            }
+
+            // Smooth rotation towards target direction
+            let diff = charState.targetRotation - charState.rotation;
+            while (diff < -Math.PI) diff += Math.PI * 2;
+            while (diff > Math.PI) diff -= Math.PI * 2;
+            charState.rotation += diff * Math.min(1, delta * 12);
+            characterRoot.rotation.y = charState.rotation;
+
+            // Physics & Boundary constraints (keep inside arena radius 22)
+            charState.vel.x *= Math.pow(0.02, delta);
+            charState.vel.z *= Math.pow(0.02, delta);
+            charState.vel.y -= 22 * delta;
+
+            charState.pos.x += charState.vel.x * delta;
+            charState.pos.y += charState.vel.y * delta;
+            charState.pos.z += charState.vel.z * delta;
+
+            // Arena boundary bounce
+            const distFromCenter = Math.sqrt(charState.pos.x * charState.pos.x + charState.pos.z * charState.pos.z);
+            if (distFromCenter > 22) {
+                charState.pos.x *= 22 / distFromCenter;
+                charState.pos.z *= 22 / distFromCenter;
+                if (aiBrain.enabled) aiBrain.pickNewTarget();
+            }
+
+            if (charState.pos.y <= 0) {
+                charState.pos.y = 0;
+                charState.vel.y = 0;
+                charState.isGrounded = true;
+            }
+
+            characterRoot.position.copy(charState.pos);
+
+            // Follow camera smoothly tracks character
+            controls.target.lerp(
+                new THREE.Vector3(charState.pos.x, charState.pos.y + 1.2, charState.pos.z),
+                0.08
+            );
+
+            // Particles fade
+            if (particleMat.opacity > 0) {
+                particleMat.opacity = Math.max(0, particleMat.opacity - delta * 2);
+                particleSystem.position.copy(characterRoot.position);
+                particleSystem.rotation.y += delta * 3;
+            }
+
+            /* --- Procedural Joint Posing --- */
+            if (joints.hips) {
+                const cycle = charState.walkCycle;
+
+                if (charState.isSpecialAction) {
+                    if (activeCharacter === 'chitanda') {
+                        joints.spine.rotation.x = 0.45;
+                        joints.head.rotation.x = -0.35;
+                        joints.head.rotation.z = Math.sin(clock.getElapsedTime() * 10) * 0.08;
+                        joints.leftArm.shoulder.rotation.set(-0.6, 0.4, 0.3);
+                        joints.rightArm.shoulder.rotation.set(-0.6, -0.4, -0.3);
+                        joints.leftArm.elbow.rotation.x = -0.8;
+                        joints.rightArm.elbow.rotation.x = -0.8;
+                    } else {
+                        joints.spine.rotation.x = 0.55;
+                        joints.head.rotation.x = -0.4;
+                        joints.rightArm.shoulder.rotation.set(-0.8, 0.4, 0.6);
+                        joints.rightArm.elbow.rotation.x = -1.2;
+                        joints.leftArm.shoulder.rotation.set(0.6, -0.2, -0.4);
+                        joints.leftLeg.hipJoint.rotation.x = -0.8;
+                        joints.rightLeg.hipJoint.rotation.x = 0.6;
+                    }
+                } else if (charState.isAltPose) {
+                    if (activeCharacter === 'chitanda') {
+                        joints.spine.rotation.x = 0.5;
+                        joints.head.rotation.x = 0.1;
+                        joints.leftArm.shoulder.rotation.set(0.3, 0.2, 0);
+                        joints.rightArm.shoulder.rotation.set(0.3, -0.2, 0);
+                    } else {
+                        const jitter = Math.sin(clock.getElapsedTime() * 35) * 0.08;
+                        joints.hips.position.y = 0.65;
+                        joints.spine.rotation.set(0.3, jitter, 0);
+                        joints.head.rotation.set(0.2, jitter * 1.5, 0);
+                        joints.leftArm.shoulder.rotation.set(1.2, 0.8, 0);
+                        joints.rightArm.shoulder.rotation.set(1.2, -0.8, 0);
+                        joints.leftLeg.knee.rotation.x = 0.8;
+                        joints.rightLeg.knee.rotation.x = 0.8;
+                    }
+                } else if (charState.vel.length() > 0.5) {
+                    // Running / Walking cycle
+                    joints.hips.position.y = 0.9 + Math.abs(Math.sin(cycle)) * 0.08;
+                    joints.spine.rotation.x = keys.sprint ? 0.3 : 0.12;
+                    joints.spine.rotation.y = Math.sin(cycle) * 0.1;
+
+                    joints.leftLeg.hipJoint.rotation.x = Math.sin(cycle) * 0.75;
+                    joints.rightLeg.hipJoint.rotation.x = -Math.sin(cycle) * 0.75;
+                    joints.leftLeg.knee.rotation.x = Math.max(0, -Math.sin(cycle) * 0.85);
+                    joints.rightLeg.knee.rotation.x = Math.max(0, Math.sin(cycle) * 0.85);
+
+                    joints.leftArm.shoulder.rotation.x = -Math.sin(cycle) * 0.65;
+                    joints.rightArm.shoulder.rotation.x = Math.sin(cycle) * 0.65;
+                    joints.leftArm.elbow.rotation.x = -0.25;
+                    joints.rightArm.elbow.rotation.x = -0.25;
+                } else {
+                    // Idle breathing
+                    const idleTime = clock.getElapsedTime() * 2;
+                    joints.hips.position.y = 0.9 + Math.sin(idleTime) * 0.02;
+                    joints.spine.rotation.x = Math.sin(idleTime) * 0.03;
+                    joints.head.rotation.y = Math.sin(idleTime * 0.6) * 0.07;
+
+                    joints.leftArm.shoulder.rotation.set(0, 0, -0.12);
+                    joints.rightArm.shoulder.rotation.set(0, 0, 0.12);
+                    joints.leftArm.elbow.rotation.x = -0.15;
+                    joints.rightArm.elbow.rotation.x = -0.15;
+
+                    joints.leftLeg.hipJoint.rotation.set(0, 0, -0.04);
+                    joints.rightLeg.hipJoint.rotation.set(0, 0, 0.04);
+                    joints.leftLeg.knee.rotation.x = 0;
+                    joints.rightLeg.knee.rotation.x = 0;
+                }
+            }
+        }
+
+        /* -------------------------------------------------------------
+           EXPORT CHARACTER GLB
+        ------------------------------------------------------------- */
+        function exportCharacterGLB() {
+            const exporter = new THREE.GLTFExporter();
+            const options = { binary: true };
+            exporter.parse(characterRoot, function(result) {
+                if (result instanceof ArrayBuffer) {
+                    const blob = new Blob([result], { type: 'application/octet-stream' });
+                    const link = document.createElement('a');
+                    link.href = URL.createObjectURL(blob);
+                    link.download = activeCharacter === 'chitanda' ? 'chitanda_eru.glb' : 'zenitsu_character.glb';
+                    link.click();
+                    URL.revokeObjectURL(link.href);
+                }
+            }, options);
+        }
+
+        /* -------------------------------------------------------------
+           CUSTOM MODEL IMPORT
+        ------------------------------------------------------------- */
+        let customMixer = null;
+        let loadedModel = null;
+
+        function loadGLB(arrayBuffer) {
+            const loader = new THREE.GLTFLoader();
+            loader.parse(arrayBuffer, '', (gltf) => {
+                if (loadedModel) scene.remove(loadedModel);
+                joints.hips.visible = false;
+
+                loadedModel = gltf.scene;
+                loadedModel.scale.set(1, 1, 1);
+                loadedModel.traverse((child) => {
+                    if (child.isMesh) {
+                        child.castShadow = true;
+                        child.receiveShadow = true;
+                    }
+                });
+
+                characterRoot.add(loadedModel);
+
+                if (gltf.animations && gltf.animations.length > 0) {
+                    customMixer = new THREE.AnimationMixer(loadedModel);
+                    const action = customMixer.clipAction(gltf.animations[0]);
+                    action.play();
+                }
+
+                closeModal('upload-modal');
+                alert('✅ 3D Model successfully loaded! The AI Autopilot is now driving it.');
+            }, (error) => {
+                alert('Error loading 3D file: ' + error.message);
+            });
+        }
+
+        function handleFileSelect(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = (e) => loadGLB(e.target.result);
+            reader.readAsArrayBuffer(file);
+        }
+
+        const dropZone = document.getElementById('drop-zone');
+        dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('dragover'); });
+        dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('dragover');
+            const file = e.dataTransfer.files[0];
+            if (file && (file.name.endsWith('.glb') || file.name.endsWith('.gltf'))) {
+                const reader = new FileReader();
+                reader.onload = (evt) => loadGLB(evt.target.result);
+                reader.readAsArrayBuffer(file);
+            }
+        });
+
+        /* -------------------------------------------------------------
+           MODAL CONTROLS
+        ------------------------------------------------------------- */
+        function openModal(id) { document.getElementById(id).style.display = 'flex'; }
+        function closeModal(id) { document.getElementById(id).style.display = 'none'; }
+
+        /* -------------------------------------------------------------
+           RENDER LOOP
+        ------------------------------------------------------------- */
+        function animate() {
+            requestAnimationFrame(animate);
+            const delta = Math.min(clock.getDelta(), 0.1);
+            animateCharacter(delta);
+            if (customMixer) customMixer.update(delta);
+            controls.update();
+            renderer.render(scene, camera);
+        }
+        animate();
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+    </script>
+</body>
+</html>

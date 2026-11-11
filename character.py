@@ -145,10 +145,10 @@ class KingCharacter(QWidget):
 
         self.chat_window = None
 
-        # Render Mode: "2D" (Authentic Kyoto Animation Sprites) by default
-        self.render_mode = "2D"
+        # Render Mode: "3D" (Full Articulated 3D Model from Chitanda_Eru)
+        self.render_mode = "3D"
 
-        # Embedded WebGL 3D Mascot View (Optional secondary mode)
+        # Embedded WebGL 3D Mascot View
         self.web_view = QWebEngineView(self)
         self.web_view.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
         self.web_view.page().setBackgroundColor(Qt.GlobalColor.transparent)
@@ -156,7 +156,8 @@ class KingCharacter(QWidget):
         self.web_view.setUrl(QUrl.fromLocalFile(html_path))
         self.web_view.resize(self.widget_width, self.widget_height)
         self.web_view.installEventFilter(self)
-        self.web_view.hide()
+        self.web_view.loadFinished.connect(lambda ok: self._sync_3d_state())
+        self.web_view.show()
 
         # Setup System Tray Icon
         self.tray_icon = QSystemTrayIcon(self)
@@ -224,8 +225,10 @@ class KingCharacter(QWidget):
     def _sync_3d_state(self):
         if self.render_mode == "3D" and hasattr(self, "web_view"):
             state_to_send = self.current_state
-            if self.is_thinking or self.is_active_reaction:
+            if self.is_thinking:
                 state_to_send = "CURIOUS"
+            elif self.is_active_reaction:
+                state_to_send = "REACTION"
             self.web_view.page().runJavaScript(f"window.setMascotState('{state_to_send}')")
 
     def eventFilter(self, obj, event):
