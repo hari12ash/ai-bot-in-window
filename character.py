@@ -152,6 +152,7 @@ class KingCharacter(QWidget):
         # Embedded WebGL 3D Mascot View
         self.web_view = QWebEngineView(self)
         self.web_view.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
+        self.web_view.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
         self.web_view.page().setBackgroundColor(Qt.GlobalColor.transparent)
         html_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "mascot_3d.html"))
         self.web_view.setUrl(QUrl.fromLocalFile(html_path))
@@ -621,12 +622,12 @@ class KingCharacter(QWidget):
     def open_chat(self):
         self.wake_up()
         if self.chat_window:
+            self.chat_window.show()
+            self.chat_window.showNormal()
             if hasattr(self.chat_window, "show_near_mascot"):
                 self.chat_window.show_near_mascot(self)
-            else:
-                self.chat_window.showNormal()
-                self.chat_window.raise_()
-                self.chat_window.activateWindow()
+            self.chat_window.raise_()
+            self.chat_window.activateWindow()
 
     def dismiss_companion(self):
         self.voice_worker.stop()

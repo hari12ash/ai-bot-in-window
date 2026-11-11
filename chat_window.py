@@ -319,6 +319,7 @@ class ChatWindow(QWidget):
         target_y = max(10, min(target_y, screen.height() - self.height() - 40))
 
         self.move(target_x, target_y)
+        self.show()
         self.showNormal()
         self.raise_()
         self.activateWindow()
