@@ -39,14 +39,14 @@ class ChatWindow(QWidget):
         )
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
 
-        self.resize(360, 480)
-        self.setMinimumSize(320, 390)
+        self.resize(230, 255)
+        self.setMinimumSize(200, 210)
 
         self._setup_ui()
 
     def _setup_ui(self):
         root_layout = QVBoxLayout(self)
-        root_layout.setContentsMargins(8, 8, 8, 8)
+        root_layout.setContentsMargins(4, 4, 4, 4)
 
         # Main background container with rounded borders and anime glow
         self.container = QFrame(self)
@@ -55,26 +55,27 @@ class ChatWindow(QWidget):
             QFrame#Container {
                 background-color: #0f0b1e;
                 border: 1.5px solid #ec4899;
-                border-radius: 14px;
+                border-radius: 12px;
             }
         """)
         container_layout = QVBoxLayout(self.container)
-        container_layout.setContentsMargins(12, 10, 12, 12)
-        container_layout.setSpacing(8)
+        container_layout.setContentsMargins(8, 6, 8, 8)
+        container_layout.setSpacing(5)
 
         # --- HEADER BAR ---
         header = QHBoxLayout()
         header.setContentsMargins(0, 0, 0, 0)
+        header.setSpacing(4)
 
         # Title & Subtitle
         title_box = QVBoxLayout()
-        title_box.setSpacing(1)
-        self.title_lbl = QLabel("🌸 Eru Chitanda")
-        self.title_lbl.setFont(QFont("Segoe UI", 11, QFont.Weight.Bold))
+        title_box.setSpacing(0)
+        self.title_lbl = QLabel("🌸 Chitanda")
+        self.title_lbl.setFont(QFont("Segoe UI", 9, QFont.Weight.Bold))
         self.title_lbl.setStyleSheet("color: #ec4899; background: transparent;")
 
-        self.status_lbl = QLabel("● Ready • Classical Literature Club")
-        self.status_lbl.setFont(QFont("Segoe UI", 8))
+        self.status_lbl = QLabel("● Ready")
+        self.status_lbl.setFont(QFont("Segoe UI", 7))
         self.status_lbl.setStyleSheet("color: #a78bfa; background: transparent;")
 
         title_box.addWidget(self.title_lbl)
@@ -85,17 +86,17 @@ class ChatWindow(QWidget):
 
         # Voice Toggle Button (Speaker Output)
         self.voice_btn = QPushButton("🔊")
-        self.voice_btn.setToolTip("Toggle Voice Speech Output")
+        self.voice_btn.setToolTip("Toggle Voice Output")
         self.voice_btn.setCheckable(True)
         self.voice_btn.setChecked(True)
-        self.voice_btn.setFixedSize(28, 28)
+        self.voice_btn.setFixedSize(22, 22)
         self.voice_btn.setStyleSheet("""
             QPushButton {
                 background-color: #24163b;
                 color: #fdf2f8;
                 border: 1px solid #4a2d6b;
-                border-radius: 14px;
-                font-size: 13px;
+                border-radius: 11px;
+                font-size: 11px;
             }
             QPushButton:hover {
                 background-color: #ec4899;
@@ -104,17 +105,38 @@ class ChatWindow(QWidget):
         self.voice_btn.clicked.connect(self._toggle_voice)
         header.addWidget(self.voice_btn)
 
-        # Close / Minimize button
+        # Minimize Button
+        min_btn = QPushButton("🗕")
+        min_btn.setToolTip("Minimize Chat Tab")
+        min_btn.setFixedSize(22, 22)
+        min_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #24163b;
+                color: #a78bfa;
+                border: 1px solid #4a2d6b;
+                border-radius: 11px;
+                font-size: 10px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #8b5cf6;
+                color: white;
+            }
+        """)
+        min_btn.clicked.connect(self.showMinimized)
+        header.addWidget(min_btn)
+
+        # Close button
         close_btn = QPushButton("✕")
         close_btn.setToolTip("Hide Chat")
-        close_btn.setFixedSize(28, 28)
+        close_btn.setFixedSize(22, 22)
         close_btn.setStyleSheet("""
             QPushButton {
                 background-color: #24163b;
                 color: #a78bfa;
                 border: 1px solid #4a2d6b;
-                border-radius: 14px;
-                font-size: 12px;
+                border-radius: 11px;
+                font-size: 10px;
                 font-weight: bold;
             }
             QPushButton:hover {
@@ -135,21 +157,21 @@ class ChatWindow(QWidget):
                 background-color: #150f28;
                 color: #fdf2f8;
                 border: 1px solid #2d1d49;
-                border-radius: 10px;
-                padding: 10px;
+                border-radius: 8px;
+                padding: 6px;
                 font-family: 'Segoe UI', sans-serif;
-                font-size: 13px;
-                line-height: 1.45;
+                font-size: 11px;
+                line-height: 1.35;
             }
             QScrollBar:vertical {
                 background: #150f28;
-                width: 6px;
+                width: 5px;
                 margin: 0px;
             }
             QScrollBar::handle:vertical {
                 background: #4a2d6b;
-                min-height: 16px;
-                border-radius: 3px;
+                min-height: 14px;
+                border-radius: 2px;
             }
             QScrollBar::handle:vertical:hover {
                 background: #ec4899;
@@ -157,25 +179,24 @@ class ChatWindow(QWidget):
         """)
         greeting = self.character.get_time_appropriate_greeting()
         self.chat_display.append(
-            f"<div style='margin-bottom: 6px;'>"
+            f"<div style='margin-bottom: 4px;'>"
             f"<b style='color: #ec4899;'>🌸 Chitanda:</b> {greeting} "
-            f"<span style='color: #f472b6;'>(私、気になります！)</span>"
             f"</div>"
         )
         container_layout.addWidget(self.chat_display)
 
         # --- QUICK ACTION CHIPS ---
         chips_layout = QHBoxLayout()
-        chips_layout.setSpacing(4)
+        chips_layout.setSpacing(3)
 
         chip_style = """
             QPushButton {
                 background-color: #1f1438;
                 color: #e9d5ff;
                 border: 1px solid #3d2363;
-                border-radius: 10px;
-                padding: 3px 7px;
-                font-size: 11px;
+                border-radius: 8px;
+                padding: 2px 5px;
+                font-size: 9.5px;
                 font-weight: 500;
             }
             QPushButton:hover {
@@ -186,12 +207,11 @@ class ChatWindow(QWidget):
         """
 
         chips = [
-            ("🎙️ Voice", self._chip_mic),
+            ("🎙️", self._chip_mic),
             ("🔍 Vision", self._chip_vision),
             ("📄 PDF", self._chip_pdf),
             ("⏰ Remind", self._chip_reminder),
-            ("⏱️ Study", self._chip_study),
-            ("🔋 Battery", self._chip_battery),
+            ("🔋", self._chip_battery),
         ]
 
         for label, callback in chips:
@@ -204,19 +224,19 @@ class ChatWindow(QWidget):
 
         # --- INPUT ROW WITH MICROPHONE ---
         input_row = QHBoxLayout()
-        input_row.setSpacing(6)
+        input_row.setSpacing(4)
 
         # Voice Input Push-to-Talk Button
         self.mic_btn = QPushButton("🎙️")
-        self.mic_btn.setToolTip("Click to speak your command (Voice Input)")
-        self.mic_btn.setFixedSize(36, 34)
+        self.mic_btn.setToolTip("Click to speak (Voice Input)")
+        self.mic_btn.setFixedSize(28, 28)
         self.mic_btn.setStyleSheet("""
             QPushButton {
                 background-color: #24163b;
                 color: #ec4899;
                 border: 1px solid #4a2d6b;
-                border-radius: 10px;
-                font-size: 15px;
+                border-radius: 8px;
+                font-size: 13px;
             }
             QPushButton:hover {
                 background-color: #ec4899;
@@ -227,15 +247,15 @@ class ChatWindow(QWidget):
         input_row.addWidget(self.mic_btn)
 
         self.chat_input = QLineEdit()
-        self.chat_input.setPlaceholderText("Message, ask screen, or give voice/command...")
+        self.chat_input.setPlaceholderText("Chat, ask screen...")
         self.chat_input.setStyleSheet("""
             QLineEdit {
                 background-color: #170f2d;
                 color: #fdf2f8;
                 border: 1px solid #3d2363;
-                border-radius: 10px;
-                padding: 8px 12px;
-                font-size: 12px;
+                border-radius: 8px;
+                padding: 4px 8px;
+                font-size: 11px;
             }
             QLineEdit:focus {
                 border: 1px solid #ec4899;
@@ -245,16 +265,16 @@ class ChatWindow(QWidget):
         input_row.addWidget(self.chat_input)
 
         send_btn = QPushButton("Send")
-        send_btn.setFixedHeight(34)
+        send_btn.setFixedHeight(28)
         send_btn.setStyleSheet("""
             QPushButton {
                 background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 #db2777, stop:1 #be185d);
                 color: white;
                 border: none;
-                border-radius: 10px;
-                padding: 0 14px;
+                border-radius: 8px;
+                padding: 0 9px;
                 font-weight: bold;
-                font-size: 12px;
+                font-size: 11px;
             }
             QPushButton:hover {
                 background: #ec4899;
