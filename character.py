@@ -7,7 +7,7 @@ from PySide6.QtCore import Qt, QTimer, QPoint, QRectF, QUrl, QEvent
 from PySide6.QtGui import (
     QColor, QPainter, QRadialGradient,
     QPen, QBrush, QFont, QPixmap, QImage, QGuiApplication,
-    QIcon, QCursor
+    QIcon, QCursor, QPainterPath
 )
 from PySide6.QtWidgets import QWidget, QMenu, QApplication, QSystemTrayIcon
 from PySide6.QtWebEngineWidgets import QWebEngineView
@@ -63,15 +63,15 @@ class KingCharacter(QWidget):
         )
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
 
-        # Proportions: width 130, height 220
+        # Proportions: width 145, height 240 (crisp high-DPI anime presentation)
         self.size_mode = "medium"
-        self.widget_width = 130
-        self.widget_height = 220
+        self.widget_width = 145
+        self.widget_height = 240
         self.resize(self.widget_width, self.widget_height)
 
         # Sprites dictionary
         self.sprites = {}
-        self.active_outfit = "uniform"  # "uniform", "curious", "casual", "yukata"
+        self.active_outfit = "uniform"  # "uniform", "curious", "casual", "winter", "oreki"
         self.load_all_sprites()
 
         # Voice & Speech Bubble
@@ -89,9 +89,28 @@ class KingCharacter(QWidget):
         # Interactive & Animation States
         self.animation_step = 0.0
         self.drag_position = None
+        self.press_global_pos = None
+        self.is_dragging = False
+        self.last_release_time = 0.0
         self.is_thinking = False
         self.is_active_reaction = False
         self.is_hidden_by_user = False
+
+        # Facial & Eye Animation State
+        self.talk_step = 0.0
+        self.blink_timer = 0
+        self.blink_duration = 0
+        self.is_blinking = False
+        self.blink_phase = 0.0
+        self.next_blink_in = random.randint(90, 160)
+
+        # Interactive cursor look-at
+        self.look_offset_x = 0.0
+        self.look_offset_y = 0.0
+        self.head_tilt = 0.0
+
+        # Dynamic Particles (Sakura petals & star sparkles)
+        self.particles = []
 
         # States: "STAND", "WALK", "CURIOUS", "SLEEP"
         self.current_state = "WALK"
@@ -119,17 +138,17 @@ class KingCharacter(QWidget):
         self.reaction_reset_timer.setSingleShot(True)
         self.reaction_reset_timer.timeout.connect(self._end_reaction)
 
-        # Animation loop
+        # Animation loop (30 FPS smooth rendering)
         self.anim_timer = QTimer(self)
         self.anim_timer.timeout.connect(self._tick)
         self.anim_timer.start(33)
 
         self.chat_window = None
 
-        # Render Mode: "3D" (Three.js WebGL Model) or "2D" (High-Res Kyoto Animation Sprites)
-        self.render_mode = "3D"
+        # Render Mode: "2D" (Authentic Kyoto Animation Sprites) by default
+        self.render_mode = "2D"
 
-        # Embedded WebGL 3D Mascot View
+        # Embedded WebGL 3D Mascot View (Optional secondary mode)
         self.web_view = QWebEngineView(self)
         self.web_view.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
         self.web_view.page().setBackgroundColor(Qt.GlobalColor.transparent)
@@ -137,7 +156,7 @@ class KingCharacter(QWidget):
         self.web_view.setUrl(QUrl.fromLocalFile(html_path))
         self.web_view.resize(self.widget_width, self.widget_height)
         self.web_view.installEventFilter(self)
-        self.web_view.show()
+        self.web_view.hide()
 
         # Setup System Tray Icon
         self.tray_icon = QSystemTrayIcon(self)
@@ -213,21 +232,37 @@ class KingCharacter(QWidget):
         if hasattr(self, "web_view") and obj == self.web_view:
             if event.type() == QEvent.Type.MouseButtonPress:
                 if event.button() == Qt.MouseButton.LeftButton:
+                    self.press_global_pos = event.globalPosition().toPoint()
                     self.drag_position = event.globalPosition().toPoint() - self.frameGeometry().topLeft()
-                    self.trigger_friendly_reaction(2000)
+                    self.is_dragging = False
+                    self.trigger_friendly_reaction(1500)
                     return True
                 elif event.button() == Qt.MouseButton.RightButton:
                     self.contextMenuEvent(event)
                     return True
             elif event.type() == QEvent.Type.MouseMove:
-                if self.drag_position is not None and event.buttons() & Qt.MouseButton.LeftButton:
-                    new_pos = event.globalPosition().toPoint() - self.drag_position
-                    self.move(new_pos)
-                    self.bubble.update_position()
-                    return True
+                if self.press_global_pos is not None and event.buttons() & Qt.MouseButton.LeftButton:
+                    delta = (event.globalPosition().toPoint() - self.press_global_pos).manhattanLength()
+                    if delta > 7:
+                        self.is_dragging = True
+                        new_pos = event.globalPosition().toPoint() - self.drag_position
+                        self.move(new_pos)
+                        self.bubble.update_position()
+                        return True
             elif event.type() == QEvent.Type.MouseButtonRelease:
                 if event.button() == Qt.MouseButton.LeftButton:
+                    now = time.time()
+                    if not self.is_dragging:
+                        if now - self.last_release_time < 0.42:
+                            self.open_chat()
+                            self.last_release_time = 0.0
+                        else:
+                            self.last_release_time = now
+                    else:
+                        self.last_release_time = 0.0
+                    self.press_global_pos = None
                     self.drag_position = None
+                    self.is_dragging = False
                     return True
             elif event.type() == QEvent.Type.MouseButtonDblClick:
                 if event.button() == Qt.MouseButton.LeftButton:
@@ -427,14 +462,82 @@ class KingCharacter(QWidget):
         self.animation_step += 0.06
         self.sleep_zzz_timer += 0.05
 
-        # 3D Head and Eye Tracking toward cursor
+        # Update Talk animation when voice is playing
+        if self.voice_worker.is_speaking:
+            self.talk_step += 0.28
+        else:
+            self.talk_step = 0.0
+
+        # Update Blinking logic
+        if self.current_state != "SLEEP":
+            self.blink_timer += 1
+            if not self.is_blinking and self.blink_timer >= self.next_blink_in:
+                self.is_blinking = True
+                self.blink_duration = 6  # 6 frames (~180 ms)
+                self.blink_timer = 0
+                self.next_blink_in = random.randint(85, 155)
+
+            if self.is_blinking:
+                self.blink_duration -= 1
+                t = 1.0 - (self.blink_duration / 6.0)
+                self.blink_phase = 1.0 - abs(t - 0.5) * 2.0
+                if self.blink_duration <= 0:
+                    self.is_blinking = False
+                    self.blink_phase = 0.0
+        else:
+            self.is_blinking = True
+            self.blink_phase = 1.0
+
+        # Interactive Mouse Cursor tracking (Gaze & Head Tilt)
+        cursor_pos = QCursor.pos()
+        center_x = self.x() + self.widget_width / 2
+        center_y = self.y() + self.widget_height * 0.25
+        target_dx = max(-1.0, min(1.0, (cursor_pos.x() - center_x) / 380.0))
+        target_dy = max(-1.0, min(1.0, (cursor_pos.y() - center_y) / 300.0))
+        self.look_offset_x += (target_dx * 3.2 - self.look_offset_x) * 0.12
+        self.look_offset_y += (target_dy * 2.2 - self.look_offset_y) * 0.12
+        self.head_tilt += (target_dx * 2.5 - self.head_tilt) * 0.10
+
+        # 3D Head and Eye Tracking toward cursor (if in 3D mode)
         if self.render_mode == "3D" and hasattr(self, "web_view") and self.isVisible():
-            cursor_pos = QCursor.pos()
-            char_center_x = self.x() + self.widget_width / 2
-            char_center_y = self.y() + self.widget_height / 3
-            dx = (cursor_pos.x() - char_center_x) / 650.0
-            dy = (cursor_pos.y() - char_center_y) / 450.0
-            self.web_view.page().runJavaScript(f"window.setTargetLook({dx:.2f}, {dy:.2f})")
+            self.web_view.page().runJavaScript(f"window.setTargetLook({target_dx:.2f}, {target_dy:.2f})")
+
+        # Particle System (Sakura petals & star sparkles)
+        is_energetic = (self.is_thinking or self.is_active_reaction or self.current_state == "CURIOUS")
+        if is_energetic and random.random() < 0.38 and len(self.particles) < 22:
+            self.particles.append({
+                "x": random.uniform(15, self.widget_width - 15),
+                "y": self.widget_height - random.uniform(25, 55),
+                "vx": random.uniform(-0.6, 0.6),
+                "vy": -random.uniform(1.2, 2.2),
+                "rot": random.uniform(0, 360),
+                "vrot": random.uniform(-4, 4),
+                "size": random.uniform(7, 12),
+                "alpha": 1.0,
+                "type": random.choice(["sakura", "sparkle", "star"])
+            })
+
+        # Walking footstep sparkle puffs
+        if self.current_state == "WALK" and abs(math.sin(self.walk_footstep * 2.0)) < 0.15 and len(self.particles) < 22:
+            self.particles.append({
+                "x": (self.widget_width // 2) - self.walk_direction * 12 + random.uniform(-5, 5),
+                "y": self.widget_height - 24,
+                "vx": -self.walk_direction * random.uniform(0.3, 0.8),
+                "vy": -random.uniform(0.4, 0.9),
+                "rot": random.uniform(0, 360),
+                "vrot": random.uniform(-3, 3),
+                "size": random.uniform(5, 8),
+                "alpha": 0.85,
+                "type": "sparkle"
+            })
+
+        for p in self.particles[:]:
+            p["x"] += p["vx"] + math.sin(self.animation_step + p["rot"]) * 0.3
+            p["y"] += p["vy"]
+            p["rot"] += p["vrot"]
+            p["alpha"] -= 0.02
+            if p["alpha"] <= 0 or p["y"] < 0:
+                self.particles.remove(p)
 
         if self.current_state == "WALK" and self.drag_position is None and not self.is_thinking and self.isVisible():
             self.walk_ticks_remaining -= 1
@@ -502,7 +605,7 @@ class KingCharacter(QWidget):
             if hasattr(self.chat_window, "show_near_mascot"):
                 self.chat_window.show_near_mascot(self)
             else:
-                self.chat_window.show()
+                self.chat_window.showNormal()
                 self.chat_window.raise_()
                 self.chat_window.activateWindow()
 
@@ -520,12 +623,26 @@ class KingCharacter(QWidget):
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
         painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
 
+        # Walk gait bounce, curiosity lean, and breathing physics
+        squash_x, squash_y = 1.0, 1.0
         if self.current_state == "WALK":
-            float_y = -abs(math.sin(self.walk_footstep)) * 3.5
-        elif self.current_state in ["CURIOUS", "SLEEP"]:
-            float_y = math.sin(self.animation_step * 0.8) * 1.8
-        else:
-            float_y = math.sin(self.animation_step) * 2.8
+            float_y = -abs(math.sin(self.walk_footstep * 2.0)) * 6.0
+            tilt_deg = math.sin(self.walk_footstep) * 3.5 * (1 if self.walk_direction > 0 else -1)
+            squash_x = 1.0 - math.sin(self.walk_footstep * 2.0) * 0.03
+            squash_y = 1.0 + math.sin(self.walk_footstep * 2.0) * 0.03
+        elif self.current_state == "CURIOUS":
+            float_y = -3.5 + math.sin(self.animation_step * 1.5) * 1.6
+            tilt_deg = math.sin(self.animation_step) * 1.2
+            squash_x = 1.02
+            squash_y = 0.98
+        elif self.current_state == "SLEEP":
+            float_y = math.sin(self.animation_step * 0.6) * 1.8
+            tilt_deg = 2.8
+        else: # STAND
+            float_y = math.sin(self.animation_step * 1.4) * 2.4
+            tilt_deg = self.head_tilt
+            squash_x = 1.0 - math.sin(self.animation_step * 1.4) * 0.015
+            squash_y = 1.0 + math.sin(self.animation_step * 1.4) * 0.015
 
         # --- SPARKLING CURIOSITY AURA (Blooming pink/purple gradient) ---
         if self.is_thinking or self.is_active_reaction or self.current_state == "CURIOUS":
@@ -546,13 +663,13 @@ class KingCharacter(QWidget):
             )
 
         # Floor shadow
-        shadow_w = int(self.widget_width * 0.65) - int(float_y * 1.0)
+        shadow_w = int(self.widget_width * 0.65) - int(float_y * 1.5)
         shadow_h = 10
         painter.setBrush(QColor(0, 0, 0, 45))
         painter.setPen(Qt.PenStyle.NoPen)
         painter.drawEllipse(
             int((self.widget_width - shadow_w) / 2),
-            int(self.widget_height - 24 + float_y * 0.3),
+            int(self.widget_height - 24 + float_y * 0.25),
             shadow_w,
             shadow_h
         )
@@ -564,21 +681,92 @@ class KingCharacter(QWidget):
 
         sprite_pair = self.sprites.get(outfit_key, self.sprites.get("uniform"))
         if sprite_pair:
-            pix = sprite_pair[1] if (self.current_state == "WALK" and self.walk_direction < 0) else sprite_pair[0]
+            facing_left = (self.current_state == "WALK" and self.walk_direction < 0)
+            pix = sprite_pair[1] if facing_left else sprite_pair[0]
             if pix and not pix.isNull():
                 painter.save()
-                if self.current_state == "WALK":
-                    tilt_deg = math.sin(self.walk_footstep) * 2.5
-                    pivot_x = self.widget_width / 2
-                    pivot_y = self.widget_height - 20
-                    painter.translate(pivot_x, pivot_y)
-                    painter.rotate(tilt_deg)
-                    painter.translate(-pivot_x, -pivot_y)
+                pivot_x = self.widget_width / 2
+                pivot_y = self.widget_height - 20
+                painter.translate(pivot_x, pivot_y)
+                painter.rotate(tilt_deg)
+                painter.scale(squash_x, squash_y)
+                painter.translate(-pivot_x, -pivot_y)
 
                 draw_x = (self.widget_width - pix.width()) // 2
                 draw_y = int(8 + float_y)
                 painter.drawPixmap(draw_x, draw_y, pix)
+
+                # --- ANIMATED FACIAL FEATURES OVERLAY ---
+                norm_eye_x = (1.0 - 0.55) if facing_left else 0.55
+                eye_center_x = draw_x + pix.width() * norm_eye_x + self.look_offset_x
+                eye_center_y = draw_y + pix.height() * 0.175 + self.look_offset_y
+
+                # Eye Blinking & Sleep Eyes
+                if self.blink_phase > 0.05 or self.current_state == "SLEEP":
+                    eyelid_h = max(2, int(8 * (1.0 if self.current_state == "SLEEP" else self.blink_phase)))
+                    painter.setPen(QPen(QColor(38, 30, 26), 2.0, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap))
+                    # Left lash arc
+                    painter.drawArc(int(eye_center_x - 9), int(eye_center_y - 2), 8, eyelid_h, 25 * 16, 130 * 16)
+                    # Right lash arc
+                    painter.drawArc(int(eye_center_x + 1), int(eye_center_y - 2), 8, eyelid_h, 25 * 16, 130 * 16)
+
+                # Curiosity Eye Sparkles
+                if (self.current_state == "CURIOUS" or self.is_thinking) and not self.is_blinking:
+                    sp_rot = self.animation_step * 1.8
+                    for ox in [-5, 5]:
+                        painter.save()
+                        painter.translate(eye_center_x + ox, eye_center_y)
+                        painter.rotate(sp_rot * (1 if ox > 0 else -1))
+                        painter.setBrush(QColor(255, 255, 255, 220))
+                        painter.setPen(Qt.PenStyle.NoPen)
+                        # Diamond star
+                        painter.drawPolygon([QPoint(-1, 0), QPoint(0, -3), QPoint(1, 0), QPoint(0, 3)])
+                        painter.drawPolygon([QPoint(0, -1), QPoint(3, 0), QPoint(0, 1), QPoint(-3, 0)])
+                        painter.restore()
+
+                # Lip-Sync Talking Mouth Animation (syncs with speech audio)
+                if self.voice_worker.is_speaking:
+                    mouth_center_x = draw_x + pix.width() * norm_eye_x + self.look_offset_x * 0.5
+                    mouth_center_y = draw_y + pix.height() * 0.285 + self.look_offset_y * 0.5
+                    mouth_open = abs(math.sin(self.talk_step * 14.0)) * 3.5
+                    if mouth_open > 0.8:
+                        painter.setPen(QPen(QColor(219, 39, 119), 1.2))
+                        painter.setBrush(QColor(244, 114, 182, 230))
+                        painter.drawEllipse(QRectF(mouth_center_x - 2.5, mouth_center_y - mouth_open / 2, 5.0, mouth_open))
+
                 painter.restore()
+
+        # Sakura & Star Floating Particles
+        for p in self.particles:
+            painter.save()
+            painter.translate(p["x"], p["y"])
+            painter.rotate(p["rot"])
+            alpha_int = int(max(0, min(255, p["alpha"] * 255)))
+            if p["type"] == "sakura":
+                painter.setBrush(QColor(244, 114, 182, alpha_int))
+                painter.setPen(Qt.PenStyle.NoPen)
+                path = QPainterPath()
+                sz = p["size"]
+                path.moveTo(0, -sz)
+                path.cubicTo(sz * 0.7, -sz * 0.5, sz * 0.5, sz * 0.5, 0, sz)
+                path.cubicTo(-sz * 0.5, sz * 0.5, -sz * 0.7, -sz * 0.5, 0, -sz)
+                painter.drawPath(path)
+            elif p["type"] == "star":
+                painter.setBrush(QColor(253, 224, 71, alpha_int))
+                painter.setPen(Qt.PenStyle.NoPen)
+                sz = p["size"] * 0.5
+                painter.drawPolygon([
+                    QPoint(0, int(-sz)), QPoint(int(sz*0.3), int(-sz*0.3)),
+                    QPoint(int(sz), 0), QPoint(int(sz*0.3), int(sz*0.3)),
+                    QPoint(0, int(sz)), QPoint(int(-sz*0.3), int(sz*0.3)),
+                    QPoint(int(-sz), 0), QPoint(int(-sz*0.3), int(-sz*0.3))
+                ])
+            else: # sparkle
+                painter.setBrush(QColor(255, 255, 255, alpha_int))
+                painter.setPen(Qt.PenStyle.NoPen)
+                sz = p["size"]
+                painter.drawEllipse(QRectF(-sz/2, -sz/2, sz, sz))
+            painter.restore()
 
         # Sleeping Zzz
         if self.current_state == "SLEEP":
@@ -603,18 +791,36 @@ class KingCharacter(QWidget):
 
     def mousePressEvent(self, event):
         if event.button() == Qt.MouseButton.LeftButton:
+            self.press_global_pos = event.globalPosition().toPoint()
             self.drag_position = event.globalPosition().toPoint() - self.frameGeometry().topLeft()
-            self.trigger_friendly_reaction(2000)
+            self.is_dragging = False
+            self.trigger_friendly_reaction(1500)
 
     def mouseMoveEvent(self, event):
-        if self.drag_position is not None and event.buttons() & Qt.MouseButton.LeftButton:
-            new_pos = event.globalPosition().toPoint() - self.drag_position
-            self.move(new_pos)
-            self.bubble.update_position()
+        if self.press_global_pos is not None and event.buttons() & Qt.MouseButton.LeftButton:
+            delta = (event.globalPosition().toPoint() - self.press_global_pos).manhattanLength()
+            if delta > 7:
+                self.is_dragging = True
+                new_pos = event.globalPosition().toPoint() - self.drag_position
+                self.move(new_pos)
+                self.bubble.update_position()
 
     def mouseReleaseEvent(self, event):
         if event.button() == Qt.MouseButton.LeftButton:
+            now = time.time()
+            if not self.is_dragging:
+                # Double tap / click detected within 420ms
+                if now - self.last_release_time < 0.42:
+                    self.open_chat()
+                    self.last_release_time = 0.0
+                else:
+                    self.last_release_time = now
+            else:
+                self.last_release_time = 0.0
+
+            self.press_global_pos = None
             self.drag_position = None
+            self.is_dragging = False
 
     def mouseDoubleClickEvent(self, event):
         if event.button() == Qt.MouseButton.LeftButton:

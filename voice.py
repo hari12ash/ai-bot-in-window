@@ -134,6 +134,15 @@ class VoiceSpeakerThread(QObject):
         self._gen_thread.audio_ready.connect(self._queue_and_play)
         self._gen_thread.fallback_needed.connect(self._fallback_speak)
 
+    @property
+    def is_speaking(self) -> bool:
+        """Returns True if voice audio is actively playing or queued."""
+        return (
+            self.player.playbackState() == QMediaPlayer.PlaybackState.PlayingState
+            or len(self._playlist) > 0
+            or not self._gen_thread._queue.empty()
+        )
+
     def start(self):
         self._gen_thread.start()
 
