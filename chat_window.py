@@ -8,7 +8,7 @@ from PySide6.QtWidgets import (
     QLineEdit, QPushButton, QTextEdit, QFrame, QScrollArea, QFileDialog
 )
 
-from ai_brain import get_installed_models, OllamaChatWorker, ChitandaMemoryManager
+from ai_brain import get_installed_models, is_vision_capable_model, OllamaChatWorker, ChitandaMemoryManager
 from laptop_control import LaptopController
 from smart_tools import ScreenInspector, PdfDocumentReader, VoiceInputThread
 
@@ -413,7 +413,11 @@ class ChatWindow(QWidget):
             f"Active Application: {act['active_app']} | Window Title: \"{act['active_title']}\"\n"
             f"Please respond kindly, concisely (1-2 sentences), and accurately stating what application and page/window the user currently has open."
         )
-        self.process_user_prompt(prompt, images=[b64_img] if b64_img else None)
+        models = get_installed_models()
+        active_model = models[0] if models else "llama3.2:1b"
+        pass_images = [b64_img] if (b64_img and is_vision_capable_model(active_model)) else None
+
+        self.process_user_prompt(prompt, images=pass_images)
 
     def trigger_pdf_summary(self, target_query=""):
         """Finds recent PDF documents and extracts text for Chitanda to summarize."""

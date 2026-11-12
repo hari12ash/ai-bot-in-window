@@ -52,6 +52,12 @@ User: "im feeling a bit tired today"
 Chitanda: "I understand completely. Please take all the time you need to rest and be gentle with yourself today."
 """
 
+def is_vision_capable_model(model_name: str) -> bool:
+    """Return True if model name matches known multimodal / vision architectures."""
+    lower = (model_name or "").lower()
+    vision_keywords = ["vision", "llava", "moondream", "bakllava", "minicpm", "qwen-vl", "qwen2-vl", "cogvlm"]
+    return any(k in lower for k in vision_keywords)
+
 def get_installed_models():
     """Retrieve list of available models from local Ollama instance."""
     try:
@@ -82,8 +88,9 @@ class OllamaChatWorker(QThread):
 
     def run(self):
         try:
-            # If images are provided, attach to the last user message
-            if self.images and self.messages and self.messages[-1].get("role") == "user":
+            # Only attach raw image data if the active model supports vision
+            can_vision = is_vision_capable_model(self.model_name)
+            if can_vision and self.images and self.messages and self.messages[-1].get("role") == "user":
                 self.messages[-1]["images"] = self.images
 
             url = "http://127.0.0.1:11434/api/chat"
@@ -98,6 +105,14 @@ class OllamaChatWorker(QThread):
                 }
             }
             res = requests.post(url, json=payload, stream=True, timeout=120)
+
+            # Auto-fallback: If Ollama rejects multimodal images, strip them and retry transparently
+            if res.status_code == 400 and "multimodal" in res.text.lower():
+                for m in self.messages:
+                    m.pop("images", None)
+                payload["messages"] = self.messages
+                res = requests.post(url, json=payload, stream=True, timeout=120)
+
             if res.status_code != 200:
                 self.error_occurred.emit(f"Ollama returned status {res.status_code}: {res.text}")
                 return
@@ -152,9 +167,13 @@ class ChitandaMemoryManager:
 
     def save(self):
         try:
+            # Strip image data before saving to disk to keep memory lightweight and text-focused
+            clean_history = []
+            for h in self.history[-16:]:
+                clean_history.append({"role": h.get("role", "user"), "content": h.get("content", "")})
             with open(MEMORY_FILE, "w", encoding="utf-8") as f:
                 json.dump({
-                    "history": self.history[-16:],
+                    "history": clean_history,
                     "user_profile": self.user_profile
                 }, f, indent=2)
         except Exception as e:
@@ -224,5 +243,13 @@ class ChitandaMemoryManager:
         system_content = f"{CHITANDA_SYSTEM_PROMPT}{profile_summary}"
 
         msgs = [{"role": "system", "content": system_content}]
-        msgs.extend(self.history[-8:])
+        models = get_installed_models()
+        active_model = models[0] if models else ""
+        can_vision = is_vision_capable_model(active_model)
+
+        for item in self.history[-8:]:
+            entry = {"role": item.get("role", "user"), "content": item.get("content", "")}
+            if can_vision and "images" in item:
+                entry["images"] = item["images"]
+            msgs.append(entry)
         return msgs

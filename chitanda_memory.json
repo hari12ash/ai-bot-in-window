@@ -7,6 +7,30 @@
     {
       "role": "assistant",
       "content": "Hello! It's lovely to hear from you today. How are you feeling? I'm right here if you need anything or just want to chat!"
+    },
+    {
+      "role": "user",
+      "content": "how r u"
+    },
+    {
+      "role": "assistant",
+      "content": "I'm doing well, thanks for asking! Just trying to keep the conversation flowing smoothly and make sure everything runs as smoothly as possible in Antigravity with me. By the way, what's on your mind today? Want to talk about something specific or just shoot the breeze for now? I've got a bit of time before our user starts their next task."
+    },
+    {
+      "role": "user",
+      "content": "The user asks: \"can u see what im doing now\"\nLive Windows Context: You are currently using Google Chrome with 'little cute character - Google Search - Google Chrome'. You also have Antigravity (\"Desktop AI Character Bot ...\"), WindowsTerminal (\"Windows PowerShell 5.1...\"), explorer (\"KING_AI - File Explorer...\") open in Windows.\nActive Application: Google Chrome | Window Title: \"little cute character - Google Search - Google Chrome\"\nPlease respond kindly, concisely (1-2 sentences), and accurately stating what application and page/window the user currently has open."
+    },
+    {
+      "role": "user",
+      "content": "The user asks: \"What am I looking at right now? Please summarize what is on my screen!\"\nLive Windows Context: You are currently using Google Chrome with 'little cute character - Google Search - Google Chrome'. You also have Antigravity (\"Desktop AI Character Bot ...\"), WindowsTerminal (\"Windows PowerShell 5.1...\"), explorer (\"KING_AI - File Explorer...\") open in Windows.\nActive Application: Google Chrome | Window Title: \"little cute character - Google Search - Google Chrome\"\nPlease respond kindly, concisely (1-2 sentences), and accurately stating what application and page/window the user currently has open."
+    },
+    {
+      "role": "user",
+      "content": "i dont know what ot do today"
+    },
+    {
+      "role": "user",
+      "content": "ok"
     }
   ],
   "user_profile": {

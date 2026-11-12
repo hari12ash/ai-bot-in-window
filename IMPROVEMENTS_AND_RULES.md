@@ -189,7 +189,44 @@
 
 ---
 
-## 9. Summary Checklist for Future Changes
+## 9. Multimodal / Vision Fallback for Text-Only Models
+
+### ❌ The Mistake:
+- When using local text-only Ollama models like `llama3.2:1b`, clicking the `🔍 [Screen Vision]` button or asking *"What am I looking at right now?"* caused Ollama to fail with HTTP 400:
+  ```json
+  {"error":"Multimodal data provided, but model does not support multimodal requests."}
+  ```
+- Because `llama3.2:1b` has no CLIP vision encoder, passing `images: [base64_data]` to `/api/chat` causes Ollama to reject the entire query.
+
+### ✅ The Enforced Rules & Solutions:
+1. **Model Vision Capability Detection (`is_vision_capable_model`)**:
+   - In `ai_brain.py`:
+     ```python
+     def is_vision_capable_model(model_name: str) -> bool:
+         lower = (model_name or "").lower()
+         vision_keywords = ["vision", "llava", "moondream", "bakllava", "minicpm", "qwen-vl", "qwen2-vl", "cogvlm"]
+         return any(k in lower for k in vision_keywords)
+     ```
+2. **Selective Image Attachment**:
+   - In `chat_window.py`, only attach base64 screenshot images if `is_vision_capable_model(active_model)` is `True`.
+   - In `OllamaChatWorker`, never attach images to the Ollama payload if the model lacks multimodal support.
+3. **Rich Context Text Fallback**:
+   - Windows desktop context already provides 100% accurate information via `ScreenInspector.get_user_activity_summary()`:
+     ```python
+     prompt = (
+         f"The user asks: \"{question}\"\n"
+         f"Live Windows Context: {act['summary']}\n"
+         f"Active Application: {act['active_app']} | Window Title: \"{act['active_title']}\"\n"
+         f"Please respond kindly, concisely (1-2 sentences), and accurately stating what application and page/window the user currently has open."
+     )
+     ```
+   - Text models (`llama3.2:1b`, etc.) answer with complete accuracy without throwing 400 errors.
+4. **Transparent Auto-Recovery in `OllamaChatWorker`**:
+   - If Ollama ever returns HTTP 400 containing `"multimodal"`, `OllamaChatWorker` automatically strips all `"images"` keys from the message history and resends the request instantly so the user never sees an error.
+
+---
+
+## 10. Summary Checklist for Future Changes
 
 Before committing any future changes, verify:
 - [ ] Is Chitanda's response concise (1–2 sentences) and free of unprompted study/exam references?
@@ -199,4 +236,5 @@ Before committing any future changes, verify:
 - [ ] Does speech start instantly (~0.05s) via native SAPI without lagging the UI?
 - [ ] Does the chat box fit the compact `230×255` size and have a working `🗕` minimize button?
 - [ ] Can Chitanda see what window/application the user has active when asked?
+- [ ] Are Screen Vision queries safe from Ollama 400 multimodal errors on text-only models?
 - [ ] Are all background processes cleanly terminated so only 1 instance of `main.py` runs?
