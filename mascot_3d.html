@@ -43,21 +43,23 @@ window.setTargetLook = function(dx, dy) {
 };
 </script>
 <script src="three.min.js"></script>
+<script src="GLTFLoader.js"></script>
+<script src="slime_model_data.js"></script>
 </head>
 <body>
 <div id="canvas-container"></div>
 <script>
 // =====================================================================
-// CHITANDA ERU 3D ARTICULATED ANIME ENGINE (from Chitanda_Eru)
+// SLIME 3D JELLY AVATAR ENGINE (from slime folder)
 // =====================================================================
 const container = document.getElementById('canvas-container');
 const width = window.innerWidth || 145;
 const height = window.innerHeight || 240;
 
 const scene = new THREE.Scene();
-const camera = new THREE.PerspectiveCamera(36, width / height, 0.1, 100);
-// Center camera perfectly on Chitanda's full body
-camera.position.set(0, 0.95, 3.1);
+const camera = new THREE.PerspectiveCamera(38, width / height, 0.1, 100);
+// Position camera to frame the slime avatar comfortably
+camera.position.set(0, 0.25, 3.2);
 
 const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
 renderer.setSize(width, height);
@@ -66,259 +68,159 @@ renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 container.appendChild(renderer.domElement);
 
-// Lighting setup (Warm anime cel-shaded studio)
-const ambientLight = new THREE.AmbientLight(0xfff7f0, 1.25);
+// Lighting setup: studio jelly illumination with blue rim glow
+const ambientLight = new THREE.AmbientLight(0xffffff, 1.35);
 scene.add(ambientLight);
 
-const dirLight = new THREE.DirectionalLight(0xffeedd, 0.95);
+const dirLight = new THREE.DirectionalLight(0xfff7ed, 1.15);
 dirLight.position.set(2.5, 4.0, 3.0);
 dirLight.castShadow = true;
 scene.add(dirLight);
 
-const rimLight = new THREE.DirectionalLight(0xd8b4fe, 0.65);
-rimLight.position.set(-2.5, 2.5, -1.5);
+const rimLight = new THREE.DirectionalLight(0x60a5fa, 0.95);
+rimLight.position.set(-2.5, 2.5, -2.0);
 scene.add(rimLight);
+
+const fillLight = new THREE.DirectionalLight(0xbae6fd, 0.60);
+fillLight.position.set(0, -1.0, 2.5);
+scene.add(fillLight);
+
+// Soft radial ground shadow
+const shadowGeo = new THREE.PlaneGeometry(1.6, 0.6);
+const shadowCanvas = document.createElement('canvas');
+shadowCanvas.width = 64;
+shadowCanvas.height = 64;
+const sCtx = shadowCanvas.getContext('2d');
+const sGrad = sCtx.createRadialGradient(32, 32, 4, 32, 32, 30);
+sGrad.addColorStop(0, 'rgba(15, 23, 42, 0.38)');
+sGrad.addColorStop(1, 'rgba(15, 23, 42, 0)');
+sCtx.fillStyle = sGrad;
+sCtx.fillRect(0, 0, 64, 64);
+const shadowTex = new THREE.CanvasTexture(shadowCanvas);
+const shadowMat = new THREE.MeshBasicMaterial({ map: shadowTex, transparent: true, depthWrite: false });
+const shadowMesh = new THREE.Mesh(shadowGeo, shadowMat);
+shadowMesh.rotation.x = -Math.PI / 2;
+shadowMesh.position.set(0, -0.62, 0);
+scene.add(shadowMesh);
 
 const characterRoot = new THREE.Group();
 scene.add(characterRoot);
 
-// Materials from Chitanda_Eru specification
-const skinMat = new THREE.MeshToonMaterial({ color: 0xffe5d9 });
-const darkHairMat = new THREE.MeshToonMaterial({ color: 0x181824 });
-const violetEyeMat = new THREE.MeshBasicMaterial({ color: 0x9c27b0 });
-const whiteMat = new THREE.MeshToonMaterial({ color: 0xfafafa });
-const navyMat = new THREE.MeshToonMaterial({ color: 0x161c2d });
-const ribbonMat = new THREE.MeshToonMaterial({ color: 0x00acc1 });
-const blackSockMat = new THREE.MeshToonMaterial({ color: 0x1a1a20 });
-const brownLoaferMat = new THREE.MeshStandardMaterial({ color: 0x4a2c1d, roughness: 0.4 });
-const blushMat = new THREE.MeshBasicMaterial({ color: 0xf472b6, transparent: true, opacity: 0.45 });
-const mouthMat = new THREE.MeshBasicMaterial({ color: 0xdb2777 });
+let slimeMesh = null;
+let baseScale = 0.85;
 
-const joints = {};
-
-// Subtle ground shadow
-const shadowGeo = new THREE.PlaneGeometry(0.7, 0.22);
-const shadowMat = new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.25 });
-const shadowMesh = new THREE.Mesh(shadowGeo, shadowMat);
-shadowMesh.rotation.x = -Math.PI / 2;
-shadowMesh.position.set(0, 0.01, 0);
-characterRoot.add(shadowMesh);
-
-// --- 1. HIPS & SPINE ---
-const hips = new THREE.Group();
-hips.position.y = 0.90;
-characterRoot.add(hips);
-joints.hips = hips;
-
-const spine = new THREE.Group();
-hips.add(spine);
-joints.spine = spine;
-
-// Uniform Torso
-const torso = new THREE.Mesh(new THREE.CylinderGeometry(0.20, 0.18, 0.45, 14), whiteMat);
-torso.position.y = 0.25;
-torso.castShadow = true;
-spine.add(torso);
-
-// Navy Sailor Collar Flap
-const collarFlap = new THREE.Mesh(new THREE.BoxGeometry(0.36, 0.05, 0.26), navyMat);
-collarFlap.position.set(0, 0.44, -0.06);
-collarFlap.castShadow = true;
-spine.add(collarFlap);
-
-// Light Blue Ribbon
-const ribbon = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.14, 0.05), ribbonMat);
-ribbon.position.set(0, 0.35, 0.17);
-spine.add(ribbon);
-
-// Pleated Navy Skirt
-const skirt = new THREE.Mesh(new THREE.CylinderGeometry(0.19, 0.33, 0.34, 18), navyMat);
-skirt.position.y = -0.04;
-skirt.castShadow = true;
-hips.add(skirt);
-
-// --- 2. HEAD & HAIR ---
-const neck = new THREE.Group();
-neck.position.y = 0.52;
-spine.add(neck);
-
-const head = new THREE.Group();
-head.position.y = 0.19;
-neck.add(head);
-joints.head = head;
-
-const headMesh = new THREE.Mesh(new THREE.SphereGeometry(0.22, 20, 20), skinMat);
-headMesh.scale.set(0.9, 1.05, 0.95);
-headMesh.castShadow = true;
-head.add(headMesh);
-
-// Sparkling Violet Eyes
-const eyeL = new THREE.Mesh(new THREE.PlaneGeometry(0.06, 0.08), violetEyeMat);
-eyeL.position.set(-0.075, 0.03, 0.205);
-eyeL.rotation.y = 0.18;
-const eyeR = eyeL.clone();
-eyeR.position.set(0.075, 0.03, 0.205);
-eyeR.rotation.y = -0.18;
-
-const glint = new THREE.Mesh(new THREE.PlaneGeometry(0.02, 0.02), whiteMat);
-glint.position.set(-0.065, 0.05, 0.21);
-const glint2 = glint.clone();
-glint2.position.set(0.085, 0.05, 0.21);
-head.add(eyeL, eyeR, glint, glint2);
-
-// Cute anime blush ovals on cheeks
-const blushL = new THREE.Mesh(new THREE.PlaneGeometry(0.045, 0.025), blushMat);
-blushL.position.set(-0.11, -0.03, 0.205);
-const blushR = blushL.clone();
-blushR.position.set(0.11, -0.03, 0.205);
-head.add(blushL, blushR);
-
-// Gentle mouth smile
-const mouth = new THREE.Mesh(new THREE.PlaneGeometry(0.035, 0.015), mouthMat);
-mouth.position.set(0, -0.08, 0.21);
-head.add(mouth);
-
-// Hair Group
-const hairBase = new THREE.Group();
-head.add(hairBase);
-
-const scalp = new THREE.Mesh(new THREE.SphereGeometry(0.25, 16, 16), darkHairMat);
-scalp.position.set(0, 0.05, -0.04);
-scalp.scale.set(1.0, 1.02, 1.02);
-hairBase.add(scalp);
-
-const bangs = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.14, 0.07), darkHairMat);
-bangs.position.set(0, 0.13, 0.17);
-bangs.rotation.x = 0.15;
-hairBase.add(bangs);
-
-const sideHairL = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.38, 0.09), darkHairMat);
-sideHairL.position.set(-0.19, -0.08, 0.10);
-sideHairL.rotation.z = -0.1;
-const sideHairR = sideHairL.clone();
-sideHairR.position.set(0.19, -0.08, 0.10);
-sideHairR.rotation.z = 0.1;
-hairBase.add(sideHairL, sideHairR);
-
-const backHair = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.75, 0.10), darkHairMat);
-backHair.position.set(0, -0.28, -0.18);
-backHair.rotation.x = -0.1;
-backHair.castShadow = true;
-hairBase.add(backHair);
-
-const backHairLower = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.45, 0.08), darkHairMat);
-backHairLower.position.set(0, -0.68, -0.22);
-backHairLower.castShadow = true;
-hairBase.add(backHairLower);
-
-// --- 3. ARMS ---
-function buildArm(isLeft) {
-    const sign = isLeft ? -1 : 1;
-    const shoulder = new THREE.Group();
-    shoulder.position.set(sign * 0.28, 0.42, 0);
-    spine.add(shoulder);
-
-    const sleeve = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.08, 0.22, 10), whiteMat);
-    sleeve.position.y = -0.08;
-    sleeve.castShadow = true;
-    shoulder.add(sleeve);
-
-    const elbow = new THREE.Group();
-    elbow.position.y = -0.25;
-    shoulder.add(elbow);
-
-    const forearm = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.055, 0.26, 10), skinMat);
-    forearm.position.y = -0.12;
-    forearm.castShadow = true;
-    elbow.add(forearm);
-
-    const hand = new THREE.Mesh(new THREE.SphereGeometry(0.055, 8, 8), skinMat);
-    hand.position.y = -0.26;
-    elbow.add(hand);
-
-    return { shoulder, elbow, hand };
+function base64ToArrayBuffer(base64) {
+    const binary_string = window.atob(base64);
+    const len = binary_string.length;
+    const bytes = new Uint8Array(len);
+    for (let i = 0; i < len; i++) {
+        bytes[i] = binary_string.charCodeAt(i);
+    }
+    return bytes.buffer;
 }
 
-joints.leftArm = buildArm(true);
-joints.rightArm = buildArm(false);
+// Load and center the Slime 3D model
+if (window.SLIME_GLB_BASE64 && THREE.GLTFLoader) {
+    const loader = new THREE.GLTFLoader();
+    const arrayBuffer = base64ToArrayBuffer(window.SLIME_GLB_BASE64);
+    loader.parse(arrayBuffer, '', function(gltf) {
+        slimeMesh = gltf.scene;
 
-// --- 4. LEGS ---
-function buildLeg(isLeft) {
-    const sign = isLeft ? -1 : 1;
-    const hipJoint = new THREE.Group();
-    hipJoint.position.set(sign * 0.12, 0, 0);
-    hips.add(hipJoint);
+        // Hide the large Blender green ground plane (Plane.002) to preserve transparent desktop
+        slimeMesh.traverse(function(child) {
+            if (child.name === 'Plane.002') {
+                child.visible = false;
+            }
+            if (child.isMesh) {
+                child.castShadow = true;
+                child.receiveShadow = true;
+                if (child.material) {
+                    child.material.roughness = 0.22;
+                    child.material.metalness = 0.05;
+                }
+            }
+        });
 
-    const thigh = new THREE.Mesh(new THREE.CylinderGeometry(0.085, 0.075, 0.24, 10), skinMat);
-    thigh.position.y = -0.12;
-    thigh.castShadow = true;
-    hipJoint.add(thigh);
+        // Compute exact bounding box of the slime body
+        const box = new THREE.Box3();
+        slimeMesh.traverse(function(child) {
+            if (child.isMesh && child.name !== 'Plane.002') {
+                box.expandByObject(child);
+            }
+        });
 
-    const knee = new THREE.Group();
-    knee.position.y = -0.26;
-    hipJoint.add(knee);
+        const size = box.getSize(new THREE.Vector3());
+        const center = box.getCenter(new THREE.Vector3());
 
-    const sock = new THREE.Mesh(new THREE.CylinderGeometry(0.075, 0.065, 0.42, 10), blackSockMat);
-    sock.position.y = -0.20;
-    sock.castShadow = true;
-    knee.add(sock);
+        // Center slime at local origin
+        slimeMesh.position.x = -center.x;
+        slimeMesh.position.y = -center.y + 0.08;
+        slimeMesh.position.z = -center.z;
 
-    const loafer = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.07, 0.20), brownLoaferMat);
-    loafer.position.set(0, -0.42, 0.04);
-    loafer.castShadow = true;
-    knee.add(loafer);
+        // Fit nicely into the viewport
+        const maxDim = Math.max(size.x, size.y, size.z) || 2.0;
+        baseScale = 1.55 / maxDim;
+        characterRoot.scale.set(baseScale, baseScale, baseScale);
 
-    return { hipJoint, knee, foot: loafer };
-}
-
-joints.leftLeg = buildLeg(true);
-joints.rightLeg = buildLeg(false);
-
-// --- 5. SAKURA BLOSSOMS PARTICLE SYSTEM ---
-const petalCount = 18;
-const petalGeo = new THREE.BufferGeometry();
-const petalPositions = new Float32Array(petalCount * 3);
-const petalVelocities = [];
-
-for (let i = 0; i < petalCount; i++) {
-    petalPositions[i * 3] = (Math.random() - 0.5) * 2.4;
-    petalPositions[i * 3 + 1] = Math.random() * 2.4;
-    petalPositions[i * 3 + 2] = (Math.random() - 0.5) * 1.6;
-    petalVelocities.push({
-        vx: (Math.random() - 0.5) * 0.008,
-        vy: -(Math.random() * 0.008 + 0.004),
-        vz: (Math.random() - 0.5) * 0.006,
-        rot: Math.random() * Math.PI
+        characterRoot.add(slimeMesh);
+    }, function(err) {
+        console.error('Error loading Slime GLB:', err);
     });
 }
-petalGeo.setAttribute('position', new THREE.BufferAttribute(petalPositions, 3));
 
-const pCanvas = document.createElement('canvas');
-pCanvas.width = 32;
-pCanvas.height = 32;
-const pCtx = pCanvas.getContext('2d');
-pCtx.fillStyle = '#f472b6';
-pCtx.beginPath();
-pCtx.ellipse(16, 16, 12, 7, Math.PI / 4, 0, Math.PI * 2);
-pCtx.fill();
-const petalTexture = new THREE.CanvasTexture(pCanvas);
+// Cute floating bubbles & sparkles particle system
+const bubbleCount = 18;
+const bubbleGeo = new THREE.BufferGeometry();
+const bubblePositions = new Float32Array(bubbleCount * 3);
+const bubbleVelocities = [];
 
-const petalMat = new THREE.PointsMaterial({
-    size: 0.14,
-    map: petalTexture,
+for (let i = 0; i < bubbleCount; i++) {
+    bubblePositions[i * 3] = (Math.random() - 0.5) * 1.8;
+    bubblePositions[i * 3 + 1] = (Math.random() - 0.5) * 1.8;
+    bubblePositions[i * 3 + 2] = (Math.random() - 0.5) * 1.2;
+    bubbleVelocities.push({
+        vx: (Math.random() - 0.5) * 0.005,
+        vy: Math.random() * 0.007 + 0.004,
+        vz: (Math.random() - 0.5) * 0.005,
+        wobble: Math.random() * Math.PI * 2
+    });
+}
+bubbleGeo.setAttribute('position', new THREE.BufferAttribute(bubblePositions, 3));
+
+const bCanvas = document.createElement('canvas');
+bCanvas.width = 32;
+bCanvas.height = 32;
+const bCtx = bCanvas.getContext('2d');
+bCtx.beginPath();
+bCtx.arc(16, 16, 12, 0, Math.PI * 2);
+bCtx.fillStyle = 'rgba(147, 197, 253, 0.65)';
+bCtx.fill();
+bCtx.strokeStyle = 'rgba(255, 255, 255, 0.9)';
+bCtx.lineWidth = 2;
+bCtx.stroke();
+// highlight reflection dot on bubble
+bCtx.beginPath();
+bCtx.arc(12, 12, 3, 0, Math.PI * 2);
+bCtx.fillStyle = '#ffffff';
+bCtx.fill();
+
+const bubbleTexture = new THREE.CanvasTexture(bCanvas);
+const bubbleMat = new THREE.PointsMaterial({
+    size: 0.16,
+    map: bubbleTexture,
     transparent: true,
-    opacity: 0.70,
+    opacity: 0.85,
     depthWrite: false
 });
-const petalParticles = new THREE.Points(petalGeo, petalMat);
-scene.add(petalParticles);
+const bubbleParticles = new THREE.Points(bubbleGeo, bubbleMat);
+scene.add(bubbleParticles);
 
 // --- STATE & INTERACTIVE CONTROL ---
 let currentState = window._pendingState || "STAND";
 let lookTarget = { x: 0, y: 0 };
 let currentLook = { x: 0, y: 0 };
 let clock = new THREE.Clock();
-let walkCycle = 0;
+let hopCycle = 0;
 
 window._applyMascotState = function(state) {
     currentState = state;
@@ -344,89 +246,81 @@ window.addEventListener('resize', () => {
 // --- ANIMATION LOOP ---
 function animate() {
     requestAnimationFrame(animate);
-    const dt = clock.getDelta();
+    const dt = Math.min(clock.getDelta(), 0.1);
     const time = clock.getElapsedTime();
 
     // Smooth cursor look-at tracking
     currentLook.x += (lookTarget.x - currentLook.x) * 0.10;
     currentLook.y += (lookTarget.y - currentLook.y) * 0.10;
 
-    // Head and neck follow mouse
-    joints.head.rotation.y = currentLook.x * 0.40;
-    joints.head.rotation.x = -currentLook.y * 0.25;
-    joints.spine.rotation.y = currentLook.x * 0.18;
+    if (characterRoot) {
+        // Slime faces cursor with smooth tilt
+        characterRoot.rotation.y = currentLook.x * 0.45;
+        characterRoot.rotation.x = -currentLook.y * 0.25;
+        characterRoot.rotation.z = -currentLook.x * 0.08;
 
-    if (currentState === "WALK") {
-        walkCycle += dt * 7.5;
-        // Natural walking stride kinematics
-        joints.hips.position.y = 0.90 + Math.abs(Math.sin(walkCycle)) * 0.05;
-        joints.spine.rotation.x = 0.10;
+        if (currentState === "WALK") {
+            hopCycle += dt * 7.5;
+            const hopSin = Math.sin(hopCycle);
+            const hopHeight = Math.max(0, hopSin) * 0.32;
+            characterRoot.position.y = -0.15 + hopHeight;
 
-        joints.leftLeg.hipJoint.rotation.x = Math.sin(walkCycle) * 0.65;
-        joints.rightLeg.hipJoint.rotation.x = -Math.sin(walkCycle) * 0.65;
-        joints.leftLeg.knee.rotation.x = Math.max(0, -Math.sin(walkCycle) * 0.75);
-        joints.rightLeg.knee.rotation.x = Math.max(0, Math.sin(walkCycle) * 0.75);
+            // Squash & stretch dynamics
+            if (hopSin < 0) {
+                // Ground contact squash
+                const squash = 1.0 - Math.abs(hopSin) * 0.22;
+                characterRoot.scale.set(baseScale * (2.0 - squash), baseScale * squash, baseScale * (2.0 - squash));
+                shadowMesh.scale.set(1.22, 1.22, 1.22);
+            } else {
+                // Airborne stretch
+                const stretch = 1.0 + hopSin * 0.18;
+                characterRoot.scale.set(baseScale / Math.sqrt(stretch), baseScale * stretch, baseScale / Math.sqrt(stretch));
+                shadowMesh.scale.set(0.85, 0.85, 0.85);
+            }
 
-        joints.leftArm.shoulder.rotation.x = -Math.sin(walkCycle) * 0.55;
-        joints.rightArm.shoulder.rotation.x = Math.sin(walkCycle) * 0.55;
-        joints.leftArm.elbow.rotation.x = -0.22;
-        joints.rightArm.elbow.rotation.x = -0.22;
+        } else if (currentState === "CURIOUS") {
+            // Excited wobble and forward lean
+            const curiousWobble = Math.sin(time * 12) * 0.05;
+            characterRoot.position.y = -0.15 + Math.sin(time * 5) * 0.04;
+            characterRoot.rotation.x = 0.28 + curiousWobble;
+            characterRoot.rotation.z = Math.sin(time * 8) * 0.08;
+            characterRoot.scale.set(baseScale * 1.05, baseScale * 0.96, baseScale * 1.05);
+            shadowMesh.scale.set(1.0, 1.0, 1.0);
 
-    } else if (currentState === "CURIOUS") {
-        // "Watashi, Kininarimasu!" forward leaning pose with tilted head
-        joints.hips.position.y = 0.88;
-        joints.spine.rotation.x = 0.38;
-        joints.head.rotation.x = -0.25;
-        joints.head.rotation.z = Math.sin(time * 6) * 0.06;
+        } else if (currentState === "REACTION" || currentState === "BOW") {
+            // Happy high spring bounce!
+            const bounce = Math.abs(Math.sin(time * 9)) * 0.42;
+            characterRoot.position.y = -0.15 + bounce;
+            const spring = 1.0 + (bounce > 0.05 ? 0.22 : -0.18);
+            characterRoot.scale.set(baseScale / Math.sqrt(spring), baseScale * spring, baseScale / Math.sqrt(spring));
+            shadowMesh.scale.set(Math.max(0.6, 1.2 - bounce * 0.8), Math.max(0.6, 1.2 - bounce * 0.8), 1);
 
-        joints.leftArm.shoulder.rotation.set(-0.5, 0.35, 0.25);
-        joints.rightArm.shoulder.rotation.set(-0.5, -0.35, -0.25);
-        joints.leftArm.elbow.rotation.x = -0.7;
-        joints.rightArm.elbow.rotation.x = -0.7;
-
-        joints.leftLeg.hipJoint.rotation.set(0, 0, 0);
-        joints.rightLeg.hipJoint.rotation.set(0, 0, 0);
-        joints.leftLeg.knee.rotation.x = 0;
-        joints.rightLeg.knee.rotation.x = 0;
-
-    } else if (currentState === "REACTION" || currentState === "BOW") {
-        // Polite greeting bow
-        joints.spine.rotation.x = 0.42;
-        joints.head.rotation.x = 0.12;
-        joints.leftArm.shoulder.rotation.set(0.25, 0.15, 0);
-        joints.rightArm.shoulder.rotation.set(0.25, -0.15, 0);
-
-    } else {
-        // STAND / Idle breathing
-        const breathe = time * 2.2;
-        joints.hips.position.y = 0.90 + Math.sin(breathe) * 0.015;
-        joints.spine.rotation.x = Math.sin(breathe) * 0.02;
-
-        joints.leftArm.shoulder.rotation.set(0, 0, -0.10);
-        joints.rightArm.shoulder.rotation.set(0, 0, 0.10);
-        joints.leftArm.elbow.rotation.x = 0;
-        joints.rightArm.elbow.rotation.x = 0;
-
-        joints.leftLeg.hipJoint.rotation.set(0, 0, 0);
-        joints.rightLeg.hipJoint.rotation.set(0, 0, 0);
-        joints.leftLeg.knee.rotation.x = 0;
-        joints.rightLeg.knee.rotation.x = 0;
-    }
-
-    // Sakura blossoms drifting animation
-    const positions = petalGeo.attributes.position.array;
-    for (let i = 0; i < petalCount; i++) {
-        const vel = petalVelocities[i];
-        positions[i * 3] += vel.vx;
-        positions[i * 3 + 1] += vel.vy;
-        positions[i * 3 + 2] += vel.vz;
-
-        if (positions[i * 3 + 1] < -0.1) {
-            positions[i * 3 + 1] = 2.4;
-            positions[i * 3] = (Math.random() - 0.5) * 2.4;
+        } else {
+            // STAND / IDLE - gentle jelly breathing and subtle float
+            const breathe = time * 2.6;
+            const breathScaleY = 1.0 + Math.sin(breathe) * 0.045;
+            const breathScaleXZ = 1.0 - Math.sin(breathe) * 0.025;
+            characterRoot.position.y = -0.15 + Math.sin(breathe) * 0.025;
+            characterRoot.scale.set(baseScale * breathScaleXZ, baseScale * breathScaleY, baseScale * breathScaleXZ);
+            shadowMesh.scale.set(1.0 + Math.sin(breathe) * 0.05, 1.0 + Math.sin(breathe) * 0.05, 1.0);
         }
     }
-    petalGeo.attributes.position.needsUpdate = true;
+
+    // Floating bubble animation
+    const bPos = bubbleGeo.attributes.position.array;
+    for (let i = 0; i < bubbleCount; i++) {
+        const vel = bubbleVelocities[i];
+        vel.wobble += dt * 2.0;
+        bPos[i * 3] += vel.vx + Math.sin(vel.wobble) * 0.002;
+        bPos[i * 3 + 1] += vel.vy;
+        bPos[i * 3 + 2] += vel.vz;
+
+        if (bPos[i * 3 + 1] > 1.2) {
+            bPos[i * 3 + 1] = -0.8;
+            bPos[i * 3] = (Math.random() - 0.5) * 1.6;
+        }
+    }
+    bubbleGeo.attributes.position.needsUpdate = true;
 
     renderer.render(scene, camera);
 }

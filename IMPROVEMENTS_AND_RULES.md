@@ -226,7 +226,28 @@
 
 ---
 
-## 10. Summary Checklist for Future Changes
+## 10. 3D Slime Avatar Loading & Transparent Desktop Isolation
+
+### ❌ Potential Issues:
+- GLB models exported from Blender often contain ground/floor planes (e.g. `Plane.002`), which would block the desktop background with an opaque green sheet.
+- Local `file://` fetch/XHR loading of binary assets in Qt Chromium web engines can trigger CORS/local origin security blocks.
+
+### ✅ The Enforced Rules & Solutions:
+1. **Self-Contained Base64 Model Injection (`slime_model_data.js`)**:
+   - `slime.glb` (~294 KB) is encoded into `window.SLIME_GLB_BASE64` and parsed via `THREE.GLTFLoader.parse(arrayBuffer, ...)`.
+   - Bypasses all `file://` security/CORS restrictions; loads synchronously with 0 network latency.
+2. **Floor Plane Filtering**:
+   - In `mascot_3d.html`, traverse the scene and set `child.visible = false` for `Plane.002`, keeping the desktop 100% transparent.
+   - Bounding box auto-centering calculates dimensions strictly from character meshes.
+3. **Squash, Stretch & Jelly Physics**:
+   - Slime idle: gentle jelly breathing & soft ambient float.
+   - Walk: dynamic squash on contact, stretch in mid-air with hop kinematics.
+   - Interaction: happy spring bounce for clicks and bows, cute wobble lean for curious state.
+   - Global bridge stubs (`window.setMascotState`, `window.setTargetLook`) maintained in `<head>` to guarantee 0 TypeError console exceptions.
+
+---
+
+## 11. Summary Checklist for Future Changes
 
 Before committing any future changes, verify:
 - [ ] Is Chitanda's response concise (1–2 sentences) and free of unprompted study/exam references?
@@ -237,4 +258,5 @@ Before committing any future changes, verify:
 - [ ] Does the chat box fit the compact `230×255` size and have a working `🗕` minimize button?
 - [ ] Can Chitanda see what window/application the user has active when asked?
 - [ ] Are Screen Vision queries safe from Ollama 400 multimodal errors on text-only models?
+- [ ] Does the 3D Slime avatar render transparently without opaque Blender ground planes?
 - [ ] Are all background processes cleanly terminated so only 1 instance of `main.py` runs?

@@ -901,7 +901,7 @@ class KingCharacter(QWidget):
 
         # 3D / 2D Mascot Mode
         render_menu = menu.addMenu("✨ 3D / 2D Mascot Mode")
-        act_3d = render_menu.addAction("✨ 3D Anime Model (WebGL)" + ("  ✔" if self.render_mode == "3D" else ""))
+        act_3d = render_menu.addAction("✨ 3D Slime Avatar (WebGL)" + ("  ✔" if self.render_mode == "3D" else ""))
         act_2d = render_menu.addAction("🌸 2D Sprite" + ("  ✔" if self.render_mode == "2D" else ""))
 
         # Laptop Quick Tools submenu
