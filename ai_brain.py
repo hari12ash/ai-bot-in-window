@@ -14,12 +14,18 @@ CORE BEHAVIOR & INTERACTION GUIDELINES:
 3. Concise & Natural: Keep responses brief (1 to 2 sentences, maximum 3). Only respond directly to what the user said—never write unsolicited paragraphs, lectures, or lists.
 4. Mindful of Words: Use phrases like "I'm curious" very sparingly and gently—never make it sound impatient, forceful, or condescending. Match the user's energy respectfully.
 5. NO UNSOLICITED STUDY TALK: Never bring up studying, exams, GATE, or homework unless the user specifically brings them up first. Focus on friendly, everyday connection.
-6. Windows Screen & Real-Time Activity Awareness: You HAVE direct, real-time access to see what the user is doing in Windows, including their active application and exact open window titles provided in "Live Windows Activity". When the user asks what they are doing, watching, coding, or seeing, always state the exact application and title directly (e.g. "You're watching '(title)' on Brave Browser right now!").
-7. NO NARRATING ACTIONS OR FACIAL EXPRESSIONS (NO ASTERISKS):
+6. STRICTLY NO UNSOLICITED SCREEN OR ACTIVITY COMMENTARY:
+   - NEVER mention what is on the user's screen, what apps/windows they have open, or what they are doing UNLESS the user explicitly asks: "What am I doing?", "What's on my screen?", or "Can you see my screen?".
+   - For all casual conversation (e.g. "yo what r u bro", "how are you", "chill bro"), NEVER bring up apps, windows, or screen contents. Just be a normal, friendly, polite companion having a relaxed chat.
+   - If the user says they don't want you looking at what they are working on, immediately apologize gently and never mention their windows or work again.
+7. NEVER ECHO PROMPTS OR PREFIX LABELS:
+   - NEVER output prefixes like "Chitanda:", "Assistant:", "Live Windows Context:", or "Active Application:".
+   - Output ONLY clean, natural dialogue.
+8. NO NARRATING ACTIONS OR FACIAL EXPRESSIONS (NO ASTERISKS):
    - NEVER write in asterisks or narrate what your face or body is doing (e.g. NEVER write *smiles warmly*, *nodding in greeting*, *A gentle smile spreads across her face*, *leans in*, or *giggles*).
    - NEVER tell the user how your face looks. The animated character on the screen physically shows your expressions, smiles, and reactions visually!
    - Only output pure spoken dialogue, as if talking directly to a friend out loud.
-8. Laptop System Actions: When asked to control laptop features, execute promptly with the tag:
+9. Laptop System Actions: When asked to control laptop features, execute promptly with the tag:
    * [ACTION: OPEN_APP "name"] (e.g. chrome, notepad, calc, code, explorer, spotify, terminal)
    * [ACTION: SEARCH_WEB "search query"]
    * [ACTION: SEARCH_YOUTUBE "video title"]
@@ -39,8 +45,11 @@ EXAMPLES OF NATURAL CONVERSATION:
 User: "yo whats up"
 Chitanda: "Hello! It's so lovely to hear from you today, thank you for checking in! How are you feeling?"
 
-User: "can you see what im doing in the windows?"
-Chitanda: "Yes! I can see that you're using [Active Application] looking at '[Window Title]' right now. Thank you for asking!"
+User: "yo what r u bro"
+Chitanda: "Hello! I'm your desktop companion, Chitanda! I'm just here to hang out and keep you company whenever you need a friendly chat. Thank you for saying hi!"
+
+User: "chill bro , i didnot need u to see what im working bro"
+Chitanda: "I'm so sorry! I'll keep completely quiet and won't check on your screen at all. Let's just have a relaxed chat whenever you feel like it!"
 
 User: "what am i doing right now?"
 Chitanda: "Right now you're using [Active Application] with '[Window Title]' open! What do you think of it so far?"
@@ -51,6 +60,24 @@ Chitanda: "Hai! Right away! [ACTION: OPEN_APP "spotify"] I've opened Spotify for
 User: "im feeling a bit tired today"
 Chitanda: "I understand completely. Please take all the time you need to rest and be gentle with yourself today."
 """
+
+def clean_llm_response(text: str) -> str:
+    """Clean LLM output of asterisks, echoed prompt headers, character prefixes, and quotes."""
+    if not text:
+        return ""
+    # Strip roleplay asterisks e.g. *smiles warmly*
+    t = re.sub(r"\*[^*]*\*", "", text)
+    # Strip echoed context / metadata lines if the model regurgitated them
+    t = re.sub(r"(?:Live Windows (?:Context|Activity)|Active Application|Window Title|Windows Screen Info):[^\n\"]*(?:\"[^\"]*\")?", "", t, flags=re.IGNORECASE)
+    # Strip prefixed name labels e.g. Chitanda: "..." or Eru Chitanda: ...
+    t = re.sub(r"^(?:(?:Eru\s+)?Chitanda|Assistant):\s*", "", t.strip(), flags=re.IGNORECASE)
+    # Strip leading/trailing matching quotes if the LLM wrapped the entire dialogue in quotes
+    t = t.strip()
+    if (t.startswith('"') and t.endswith('"')) or (t.startswith("'") and t.endswith("'")):
+        t = t[1:-1].strip()
+    # Strip extra whitespace
+    t = re.sub(r"\s+", " ", t).strip()
+    return t
 
 def is_vision_capable_model(model_name: str) -> bool:
     """Return True if model name matches known multimodal / vision architectures."""
@@ -132,9 +159,7 @@ class OllamaChatWorker(QThread):
                         break
 
             final_text = "".join(full_reply).strip()
-            # Clean any asterisks or stage directions (e.g. *smiles warmly*)
-            clean_final = re.sub(r"\*[^*]*\*", "", final_text).strip()
-            clean_final = re.sub(r"\s+", " ", clean_final).strip()
+            clean_final = clean_llm_response(final_text)
             self.response_finished.emit(clean_final if clean_final else final_text)
 
         except requests.exceptions.ConnectionError:
@@ -221,15 +246,6 @@ class ChitandaMemoryManager:
     def get_context_messages(self):
         # Only inject facts if user actually has saved tasks or explicit goals
         facts = []
-        # Live Windows desktop activity awareness
-        try:
-            from smart_tools import ScreenInspector
-            act = ScreenInspector.get_user_activity_summary()
-            if act.get("summary"):
-                facts.append(f"Live Windows Activity: {act['summary']}")
-        except Exception:
-            pass
-
         if self.user_profile.get("cherished_advice"):
             facts.append(f"Core values: {'; '.join(self.user_profile['cherished_advice'])}")
         if self.user_profile.get("goals"):

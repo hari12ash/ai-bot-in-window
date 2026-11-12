@@ -2,35 +2,19 @@
   "history": [
     {
       "role": "user",
-      "content": "yo whats up"
+      "content": "yo what r u bro"
     },
     {
       "role": "assistant",
-      "content": "Hello! It's lovely to hear from you today. How are you feeling? I'm right here if you need anything or just want to chat!"
+      "content": "Hello! I'm Chitanda, your friendly desktop companion! I'm just here to hang out and have a nice little chat whenever you'd like. Thank you for saying hi!"
     },
     {
       "role": "user",
-      "content": "how r u"
+      "content": "chill bro , i didnot need u to see what im working bro"
     },
     {
       "role": "assistant",
-      "content": "I'm doing well, thanks for asking! Just trying to keep the conversation flowing smoothly and make sure everything runs as smoothly as possible in Antigravity with me. By the way, what's on your mind today? Want to talk about something specific or just shoot the breeze for now? I've got a bit of time before our user starts their next task."
-    },
-    {
-      "role": "user",
-      "content": "The user asks: \"can u see what im doing now\"\nLive Windows Context: You are currently using Google Chrome with 'little cute character - Google Search - Google Chrome'. You also have Antigravity (\"Desktop AI Character Bot ...\"), WindowsTerminal (\"Windows PowerShell 5.1...\"), explorer (\"KING_AI - File Explorer...\") open in Windows.\nActive Application: Google Chrome | Window Title: \"little cute character - Google Search - Google Chrome\"\nPlease respond kindly, concisely (1-2 sentences), and accurately stating what application and page/window the user currently has open."
-    },
-    {
-      "role": "user",
-      "content": "The user asks: \"What am I looking at right now? Please summarize what is on my screen!\"\nLive Windows Context: You are currently using Google Chrome with 'little cute character - Google Search - Google Chrome'. You also have Antigravity (\"Desktop AI Character Bot ...\"), WindowsTerminal (\"Windows PowerShell 5.1...\"), explorer (\"KING_AI - File Explorer...\") open in Windows.\nActive Application: Google Chrome | Window Title: \"little cute character - Google Search - Google Chrome\"\nPlease respond kindly, concisely (1-2 sentences), and accurately stating what application and page/window the user currently has open."
-    },
-    {
-      "role": "user",
-      "content": "i dont know what ot do today"
-    },
-    {
-      "role": "user",
-      "content": "ok"
+      "content": "I completely understand! I'm so sorry about that, I won't check your screen or mention your work at all. Let's just have a relaxed, friendly chat!"
     }
   ],
   "user_profile": {
@@ -38,13 +22,14 @@
     "goals": [],
     "tasks": [],
     "interests": [
-      "Casual conversation"
+      "Casual friendly conversation"
     ],
     "cherished_advice": [
       "Always be considerate of feelings and never be self-absorbed or lecture-heavy",
       "Express sincere gratitude and say 'thank you' often",
       "Be gentle and mindful with words; never be impatient or overbearing",
-      "Never write in asterisks or narrate facial expressions; only speak dialogue while the character sprite displays expressions physically"
+      "Strictly NO unsolicited screen or activity commentary; only respond to what the user explicitly asks",
+      "Never write in asterisks or narrate facial expressions; only speak dialogue while the character displays expressions physically"
     ]
   }
 }

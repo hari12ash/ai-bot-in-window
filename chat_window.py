@@ -8,7 +8,7 @@ from PySide6.QtWidgets import (
     QLineEdit, QPushButton, QTextEdit, QFrame, QScrollArea, QFileDialog
 )
 
-from ai_brain import get_installed_models, is_vision_capable_model, OllamaChatWorker, ChitandaMemoryManager
+from ai_brain import get_installed_models, is_vision_capable_model, clean_llm_response, OllamaChatWorker, ChitandaMemoryManager
 from laptop_control import LaptopController
 from smart_tools import ScreenInspector, PdfDocumentReader, VoiceInputThread
 
@@ -409,15 +409,14 @@ class ChatWindow(QWidget):
 
         prompt = (
             f"The user asks: \"{question}\"\n"
-            f"Live Windows Context: {act['summary']}\n"
-            f"Active Application: {act['active_app']} | Window Title: \"{act['active_title']}\"\n"
+            f"Windows Screen Info (Use this ONLY to answer the user's question, do not repeat these headers): Active App: {act['active_app']}, Window: \"{act['active_title']}\".\n"
             f"Please respond kindly, concisely (1-2 sentences), and accurately stating what application and page/window the user currently has open."
         )
         models = get_installed_models()
         active_model = models[0] if models else "llama3.2:1b"
         pass_images = [b64_img] if (b64_img and is_vision_capable_model(active_model)) else None
 
-        self.process_user_prompt(prompt, images=pass_images)
+        self.process_user_prompt(prompt, images=pass_images, memory_text=question)
 
     def trigger_pdf_summary(self, target_query=""):
         """Finds recent PDF documents and extracts text for Chitanda to summarize."""
@@ -672,12 +671,13 @@ class ChatWindow(QWidget):
     # -------------------------------------------------------------
     # OLLAMA AI STREAMING & MEMORY PERSISTENCE
     # -------------------------------------------------------------
-    def process_user_prompt(self, user_text, images=None):
+    def process_user_prompt(self, user_text, images=None, memory_text=None):
         if self.active_worker and self.active_worker.isRunning():
             self.active_worker.cancel()
 
-        # Add to persistent memory silently
-        self.memory.add_message("user", user_text)
+        # Add to persistent memory silently (store clean user query, avoid prompt metadata pollution)
+        stored_text = memory_text if memory_text else user_text
+        self.memory.add_message("user", stored_text)
 
         self.status_lbl.setText("● Thinking... (私、気になります！)")
         self.character.set_thinking(True)
@@ -686,6 +686,10 @@ class ChatWindow(QWidget):
         models = get_installed_models()
         model = models[0] if models else "llama3.2:1b"
         messages = self.memory.get_context_messages()
+
+        # If user_text had extra contextual instructions, inject into current turn's payload only
+        if user_text != stored_text and messages and messages[-1].get("role") == "user":
+            messages[-1]["content"] = user_text
 
         self.active_worker = OllamaChatWorker(model, messages, images=images)
         self.active_worker.token_received.connect(self._on_token)
@@ -698,7 +702,7 @@ class ChatWindow(QWidget):
     def _on_token(self, token):
         self._current_reply_accum.append(token)
         accum_text = "".join(self._current_reply_accum)
-        clean_preview = re.sub(r'\*[^*]*\*', '', accum_text)
+        clean_preview = clean_llm_response(accum_text)
         clean_preview = re.sub(r'\[ACTION:[^\]]*\]?', '', clean_preview).strip()
         self.character.bubble.set_streaming_text(clean_preview if clean_preview else "...")
 
@@ -706,8 +710,8 @@ class ChatWindow(QWidget):
         self.status_lbl.setText("● Ready")
         self.character.set_thinking(False)
 
-        # Remove any roleplay asterisks or stage directions (e.g. *smiles warmly*)
-        clean_dialogue = re.sub(r'\*[^*]*\*', '', full_text).strip()
+        # Remove any roleplay asterisks, echoed context headers, or prefix labels
+        clean_dialogue = clean_llm_response(full_text)
         clean_dialogue = re.sub(r'\[ACTION:[^\]]+\]', '', clean_dialogue).strip()
         clean_dialogue = re.sub(r'\s+', ' ', clean_dialogue).strip()
 

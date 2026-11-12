@@ -247,7 +247,32 @@
 
 ---
 
-## 11. Summary Checklist for Future Changes
+## 11. Elimination of Unsolicited Screen Commentary & Prompt Leakage Loops
+
+### ❌ The Mistake:
+- In `ai_brain.py`, `ScreenInspector.get_user_activity_summary()` was unconditionally injected into the system prompt facts on EVERY single chat message, even when the user just said *"yo what r u bro"* or *"chill bro"*.
+- In `chat_window.py`, when screen analysis was triggered, the full formatted prompt template containing `"Live Windows Context: ... Active Application: ..."` was stored directly in `chitanda_memory.json` as the user's message.
+- The small 1B model saw `Live Windows Context: ...` in previous turns, started echoing the words verbatim in its responses, and kept talking about open tabs/windows even when the user begged her to stop.
+
+### ✅ The Enforced Rules & Solutions:
+1. **STRICTLY No Unsolicited Screen Commentary**:
+   - `ScreenInspector.get_user_activity_summary()` is NEVER injected into default system prompt facts for general chit-chat.
+   - Screen/window activity is ONLY provided when the user explicitly triggers Screen Vision or asks *"What am I looking at?"* / *"What am I doing?"*.
+2. **Clean Memory Storage (`memory_text`)**:
+   - In `chat_window.py`, `process_user_prompt(prompt, memory_text=question)` records only the clean, original question in `chitanda_memory.json`.
+   - The formatted prompt template is used strictly for the single ephemeral Ollama request payload and NEVER pollutes the permanent dialogue history.
+3. **Response Sanitization (`clean_llm_response`)**:
+   - `clean_llm_response` defensively strips:
+     - Echoed metadata headers (`Live Windows Context:`, `Active Application:`, `Window Title:`).
+     - Model name prefixes (`Chitanda:`, `Eru Chitanda:`, `Assistant:`).
+     - Unnecessary outer quotes.
+     - Roleplay asterisks (`*...*`).
+4. **Sanitized Dialogue History**:
+   - `chitanda_memory.json` was purged of all contaminated echoed messages, restoring a relaxed, respectful companion persona.
+
+---
+
+## 12. Summary Checklist for Future Changes
 
 Before committing any future changes, verify:
 - [ ] Is Chitanda's response concise (1–2 sentences) and free of unprompted study/exam references?
@@ -256,7 +281,7 @@ Before committing any future changes, verify:
 - [ ] Does the 3D model load cleanly with 0 console errors in `QWebEngineView`?
 - [ ] Does speech start instantly (~0.05s) via native SAPI without lagging the UI?
 - [ ] Does the chat box fit the compact `230×255` size and have a working `🗕` minimize button?
-- [ ] Can Chitanda see what window/application the user has active when asked?
+- [ ] Does Chitanda refrain from mentioning screens/windows unless explicitly asked?
 - [ ] Are Screen Vision queries safe from Ollama 400 multimodal errors on text-only models?
 - [ ] Does the 3D Slime avatar render transparently without opaque Blender ground planes?
 - [ ] Are all background processes cleanly terminated so only 1 instance of `main.py` runs?
