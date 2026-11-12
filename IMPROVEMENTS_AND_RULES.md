@@ -272,7 +272,28 @@
 
 ---
 
-## 12. Summary Checklist for Future Changes
+## 12. Ollama Model Power Optimization & Multi-Model Selection
+
+### ❌ The Issue:
+- The default setup ran `llama3.2:1b` (1.2 billion parameters) with a high temperature (`0.65`) and default unexpanded context window (`2048`).
+- Small 1B models with high temperature hallucinate factual details, dates, science, and math.
+- Hardcoded `models[0]` prevented users from selecting or taking advantage of smarter models installed in Ollama.
+
+### ✅ The Enforced Rules & Solutions:
+1. **Inference Power Optimization**:
+   - `temperature: 0.45`: Significantly reduces hallucinations and grounds responses in factual accuracy.
+   - `num_ctx: 4096`: Expands context buffer from default 2048 to 4096 so conversation and system instructions are never truncated.
+   - `top_k: 40`, `top_p: 0.9`, `repeat_penalty: 1.15`, `num_predict: 350`.
+2. **Dynamic Capability Sorting**:
+   - `get_installed_models()` ranks available models by capability (8b/7b > 3b > 1b), automatically giving the user the smartest model available.
+3. **Model Selection UI**:
+   - Added an `"🤖 Ollama AI Model"` submenu to the character's right-click context menu.
+   - The chat box status header dynamically displays the active model name (e.g. `● Ready • llama3.2:1b`).
+   - Supports seamless switching between any models pulled in Ollama (`llama3.2:3b`, `qwen2.5:3b`, `llama3:8b`, etc.).
+
+---
+
+## 13. Summary Checklist for Future Changes
 
 Before committing any future changes, verify:
 - [ ] Is Chitanda's response concise (1–2 sentences) and free of unprompted study/exam references?
@@ -283,5 +304,8 @@ Before committing any future changes, verify:
 - [ ] Does the chat box fit the compact `230×255` size and have a working `🗕` minimize button?
 - [ ] Does Chitanda refrain from mentioning screens/windows unless explicitly asked?
 - [ ] Are Screen Vision queries safe from Ollama 400 multimodal errors on text-only models?
+- [ ] Are Ollama inference parameters optimized for accuracy (`temperature: 0.45`, `num_ctx: 4096`)?
+- [ ] Does the 3D Slime avatar render transparently without opaque Blender ground planes?
+- [ ] Are all background processes cleanly terminated so only 1 instance of `main.py` runs?
 - [ ] Does the 3D Slime avatar render transparently without opaque Blender ground planes?
 - [ ] Are all background processes cleanly terminated so only 1 instance of `main.py` runs?

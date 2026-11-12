@@ -86,14 +86,23 @@ def is_vision_capable_model(model_name: str) -> bool:
     return any(k in lower for k in vision_keywords)
 
 def get_installed_models():
-    """Retrieve list of available models from local Ollama instance."""
+    """Retrieve list of available models from local Ollama instance, prioritizing smarter models."""
     try:
         res = requests.get("http://127.0.0.1:11434/api/tags", timeout=2)
         if res.status_code == 200:
             data = res.json()
             models = [m["name"] for m in data.get("models", [])]
             if models:
-                return models
+                def model_rank(name):
+                    n = name.lower()
+                    if any(k in n for k in ["8b", "7b", "mistral", "gemma2"]):
+                        return 10
+                    if any(k in n for k in ["3b", "2.5"]):
+                        return 5
+                    if "1b" in n:
+                        return 1
+                    return 2
+                return sorted(models, key=model_rank, reverse=True)
     except Exception:
         pass
     return ["llama3.2:1b"]
@@ -103,11 +112,12 @@ class OllamaChatWorker(QThread):
     response_finished = Signal(str)
     error_occurred = Signal(str)
 
-    def __init__(self, model_name, messages, images=None):
+    def __init__(self, model_name, messages, images=None, temperature=0.45):
         super().__init__()
         self.model_name = model_name
         self.messages = messages
         self.images = images or []
+        self.temperature = temperature
         self._is_cancelled = False
 
     def cancel(self):
@@ -126,9 +136,12 @@ class OllamaChatWorker(QThread):
                 "messages": self.messages,
                 "stream": True,
                 "options": {
-                    "temperature": 0.65,
+                    "temperature": self.temperature,
                     "top_p": 0.9,
-                    "repeat_penalty": 1.15
+                    "top_k": 40,
+                    "repeat_penalty": 1.15,
+                    "num_ctx": 4096,
+                    "num_predict": 350
                 }
             }
             res = requests.post(url, json=payload, stream=True, timeout=120)

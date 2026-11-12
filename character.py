@@ -17,6 +17,7 @@ from voice import VoiceSpeakerThread
 from work_tools import StudySessionManager
 from laptop_control import LaptopController
 from smart_tools import ReminderManager
+from ai_brain import get_installed_models
 
 UNIFORM_SPRITE = os.path.join(os.path.dirname(__file__), "chitanda_uniform.png")
 CURIOUS_SPRITE = os.path.join(os.path.dirname(__file__), "chitanda_curious.png")
@@ -904,6 +905,15 @@ class KingCharacter(QWidget):
         act_3d = render_menu.addAction("✨ 3D Slime Avatar (WebGL)" + ("  ✔" if self.render_mode == "3D" else ""))
         act_2d = render_menu.addAction("🌸 2D Sprite" + ("  ✔" if self.render_mode == "2D" else ""))
 
+        # Ollama AI Model Submenu
+        model_menu = menu.addMenu("🤖 Ollama AI Model")
+        installed_models = get_installed_models()
+        active_model = self.chat_window.get_selected_model() if self.chat_window else (installed_models[0] if installed_models else "llama3.2:1b")
+        model_actions = {}
+        for m in installed_models:
+            act_m = model_menu.addAction(f"{m}" + ("  ✔" if m == active_model else ""))
+            model_actions[act_m] = m
+
         # Laptop Quick Tools submenu
         laptop_menu = menu.addMenu("💻 Laptop Controls")
         act_battery = laptop_menu.addAction("🔋 Check Battery Status")
@@ -956,6 +966,11 @@ class KingCharacter(QWidget):
             self.set_render_mode("3D")
         elif action == act_2d:
             self.set_render_mode("2D")
+        elif action in model_actions:
+            chosen_model = model_actions[action]
+            if self.chat_window:
+                self.chat_window.set_selected_model(chosen_model)
+            self.say(f"Switched to model {chosen_model}!", voice=False)
         elif action == action_ask:
             self._ask_proactive_question()
         elif action == act_battery:

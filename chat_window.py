@@ -31,6 +31,7 @@ class ChatWindow(QWidget):
         self.voice_rec_thread = None
         self._current_reply_accum = []
         self._drag_pos = None
+        self.selected_model = None
 
         self.setWindowFlags(
             Qt.WindowType.FramelessWindowHint |
@@ -74,7 +75,7 @@ class ChatWindow(QWidget):
         self.title_lbl.setFont(QFont("Segoe UI", 9, QFont.Weight.Bold))
         self.title_lbl.setStyleSheet("color: #ec4899; background: transparent;")
 
-        self.status_lbl = QLabel("● Ready")
+        self.status_lbl = QLabel(f"● Ready • {self.get_selected_model()}")
         self.status_lbl.setFont(QFont("Segoe UI", 7))
         self.status_lbl.setStyleSheet("color: #a78bfa; background: transparent;")
 
@@ -671,6 +672,16 @@ class ChatWindow(QWidget):
     # -------------------------------------------------------------
     # OLLAMA AI STREAMING & MEMORY PERSISTENCE
     # -------------------------------------------------------------
+    def get_selected_model(self):
+        models = get_installed_models()
+        if hasattr(self, "selected_model") and self.selected_model in models:
+            return self.selected_model
+        return models[0] if models else "llama3.2:1b"
+
+    def set_selected_model(self, model_name):
+        self.selected_model = model_name
+        self.status_lbl.setText(f"● Ready • {model_name}")
+
     def process_user_prompt(self, user_text, images=None, memory_text=None):
         if self.active_worker and self.active_worker.isRunning():
             self.active_worker.cancel()
@@ -683,8 +694,7 @@ class ChatWindow(QWidget):
         self.character.set_thinking(True)
         self.character.bubble.set_streaming_text("I'm curious...")
 
-        models = get_installed_models()
-        model = models[0] if models else "llama3.2:1b"
+        model = self.get_selected_model()
         messages = self.memory.get_context_messages()
 
         # If user_text had extra contextual instructions, inject into current turn's payload only
@@ -707,7 +717,7 @@ class ChatWindow(QWidget):
         self.character.bubble.set_streaming_text(clean_preview if clean_preview else "...")
 
     def _on_finished(self, full_text):
-        self.status_lbl.setText("● Ready")
+        self.status_lbl.setText(f"● Ready • {self.get_selected_model()}")
         self.character.set_thinking(False)
 
         # Remove any roleplay asterisks, echoed context headers, or prefix labels
