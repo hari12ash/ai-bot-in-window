@@ -40,7 +40,10 @@ Powered locally and privately by **Ollama** and **PySide6 (Qt6)**.
 
 - **🧠 Persistent Memory & Local AI**:
   - Runs 100% locally and privately via **Ollama**.
-  - Silently retains long-term goals (such as GATE exam preparation), tasks, and study habits without screen clutter.
+  - Silently retains personal interests, custom tasks, and preferences with heartfelt friendship values.
+
+- **📜 Project Rules & Architectural Guidelines**:
+  - All bug fixes, design decisions, and strict guidelines are documented in [**`IMPROVEMENTS_AND_RULES.md`**](file:///c:/Users/eruma/Desktop/KING_AI/IMPROVEMENTS_AND_RULES.md) to prevent past issues from recurring.
 
 ---
 
